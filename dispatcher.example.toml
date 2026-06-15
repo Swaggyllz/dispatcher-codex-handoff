@@ -1,0 +1,32 @@
+fallback_enabled = true
+
+[tier_policies.simple]
+quality_weight = 0.10
+cost_weight = 0.60
+latency_weight = 0.15
+# Optional explicit local preference. Keep commented unless you want
+# keyword-based policy bias on top of structured scoring.
+# preferred_model_keywords = ["flash", "haiku"]
+# avoided_model_keywords = ["opus"]
+
+[tier_policies.medium]
+quality_weight = 0.35
+cost_weight = 0.35
+latency_weight = 0.15
+
+[tier_policies.reasoning]
+quality_weight = 0.65
+cost_weight = 0.10
+latency_weight = 0.10
+# preferred_model_keywords = ["sonnet", "gpt-4"]
+
+[tier_policies.complex]
+quality_weight = 0.75
+cost_weight = 0.05
+latency_weight = 0.05
+
+[strategy_weights.fast]
+quality = 0.25
+cost = 0.10
+latency = 0.55
+availability = 0.10

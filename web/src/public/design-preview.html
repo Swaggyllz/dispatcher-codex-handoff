@@ -1,0 +1,1502 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dispatcher Dashboard Design Preview</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        color-scheme: dark;
+        --canvas: #0c0e0f;
+        --surface-1: #111416;
+        --surface-2: #171b1e;
+        --surface-3: #1d2225;
+        --line: #2a3034;
+        --line-strong: #394247;
+        --text: #edf1ef;
+        --text-2: #a8b0ad;
+        --text-3: #707a76;
+        --accent: #52c7a2;
+        --accent-dim: #193c32;
+        --amber: #e6aa55;
+        --red: #e06c75;
+        --blue: #72a7d9;
+        --sidebar: 272px;
+        --radius: 7px;
+        font-family: "IBM Plex Sans", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-width: 320px;
+        min-height: 100vh;
+        color: var(--text);
+        background: var(--canvas);
+        font-size: 13px;
+        letter-spacing: 0;
+      }
+
+      button,
+      textarea {
+        font: inherit;
+      }
+
+      button {
+        color: inherit;
+      }
+
+      .mono {
+        font-family: "IBM Plex Mono", monospace;
+      }
+
+      .app {
+        min-height: 100vh;
+        display: grid;
+        grid-template-rows: 58px minmax(0, 1fr);
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-width: 0;
+        padding: 0 22px;
+        border-bottom: 1px solid var(--line);
+        background: #0f1213;
+      }
+
+      .brand,
+      .top-actions,
+      .connection,
+      .row,
+      .capabilities,
+      .route-title,
+      .route-meta,
+      .panel-heading,
+      .section-label,
+      .action-row {
+        display: flex;
+        align-items: center;
+      }
+
+      .brand {
+        gap: 12px;
+        min-width: 0;
+      }
+
+      .brand-mark {
+        width: 30px;
+        height: 30px;
+        display: grid;
+        place-items: center;
+        color: var(--accent);
+        border: 1px solid var(--line-strong);
+        border-radius: 6px;
+        background: var(--surface-2);
+      }
+
+      .brand-copy strong {
+        display: block;
+        font-size: 15px;
+        line-height: 1.1;
+        font-weight: 600;
+      }
+
+      .brand-copy span {
+        display: block;
+        margin-top: 3px;
+        color: var(--text-3);
+        font-size: 11px;
+      }
+
+      .top-actions {
+        gap: 10px;
+      }
+
+      .connection {
+        gap: 7px;
+        color: var(--text-2);
+        font-size: 12px;
+      }
+
+      .dot {
+        width: 7px;
+        height: 7px;
+        flex: 0 0 auto;
+        border-radius: 50%;
+        background: var(--accent);
+      }
+
+      .icon-button,
+      .text-button,
+      .send-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--surface-1);
+        cursor: pointer;
+        transition:
+          border-color 140ms ease,
+          background 140ms ease,
+          color 140ms ease;
+      }
+
+      .icon-button:hover,
+      .text-button:hover {
+        color: var(--text);
+        border-color: var(--line-strong);
+        background: var(--surface-2);
+      }
+
+      .icon-button {
+        width: 32px;
+        height: 32px;
+        color: var(--text-2);
+      }
+
+      .text-button {
+        height: 32px;
+        padding: 0 11px;
+        color: var(--text-2);
+        font-size: 12px;
+      }
+
+      .shell {
+        display: grid;
+        grid-template-columns: var(--sidebar) minmax(0, 1fr);
+        min-height: 0;
+      }
+
+      .sidebar {
+        min-width: 0;
+        padding: 18px 14px;
+        border-right: 1px solid var(--line);
+        background: #0f1213;
+      }
+
+      .section-label {
+        justify-content: space-between;
+        margin: 0 6px 12px;
+        color: var(--text-3);
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+      }
+
+      .section-label span:last-child {
+        font-family: "IBM Plex Mono", monospace;
+        font-weight: 400;
+      }
+
+      .provider-list {
+        display: grid;
+        gap: 4px;
+      }
+
+      .provider {
+        overflow: hidden;
+        border: 1px solid transparent;
+        border-radius: var(--radius);
+      }
+
+      .provider[data-open="true"] {
+        border-color: var(--line);
+        background: var(--surface-1);
+      }
+
+      .provider-main {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 9px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 10px;
+        padding: 10px;
+        border: 0;
+        border-radius: 6px;
+        color: var(--text);
+        background: transparent;
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .provider-main:hover {
+        background: var(--surface-2);
+      }
+
+      .provider-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+      }
+
+      .provider-dot.healthy {
+        background: var(--accent);
+      }
+
+      .provider-dot.degraded {
+        background: var(--amber);
+      }
+
+      .provider-name {
+        min-width: 0;
+      }
+
+      .provider-name strong,
+      .provider-name span {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .provider-name strong {
+        font-size: 12px;
+        font-weight: 500;
+      }
+
+      .provider-name span {
+        margin-top: 3px;
+        color: var(--text-3);
+        font-size: 10px;
+      }
+
+      .provider-status {
+        color: var(--text-3);
+        font-size: 10px;
+      }
+
+      .provider-details {
+        display: none;
+        padding: 0 10px 11px 26px;
+      }
+
+      .provider[data-open="true"] .provider-details {
+        display: block;
+      }
+
+      .health-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        padding-top: 9px;
+        border-top: 1px solid var(--line);
+      }
+
+      .health-grid span {
+        display: block;
+        color: var(--text-3);
+        font-size: 9px;
+      }
+
+      .health-grid strong {
+        display: block;
+        margin-top: 2px;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 10px;
+        font-weight: 500;
+      }
+
+      .capabilities {
+        gap: 5px;
+        margin-top: 10px;
+      }
+
+      .capability {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 5px;
+        color: var(--text-3);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        font-size: 9px;
+      }
+
+      .sidebar-foot {
+        margin: 20px 6px 0;
+        padding-top: 14px;
+        border-top: 1px solid var(--line);
+        color: var(--text-3);
+        font-size: 10px;
+        line-height: 1.7;
+      }
+
+      .content {
+        min-width: 0;
+        padding: 18px 22px 34px;
+        overflow: auto;
+      }
+
+      .content-inner {
+        width: min(100%, 1180px);
+        margin: 0 auto;
+      }
+
+      .metric-strip {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        margin-bottom: 16px;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--surface-1);
+      }
+
+      .metric {
+        position: relative;
+        min-width: 0;
+        padding: 14px 16px;
+        border-right: 1px solid var(--line);
+      }
+
+      .metric:last-child {
+        border-right: 0;
+      }
+
+      .metric-label {
+        display: block;
+        color: var(--text-3);
+        font-size: 10px;
+      }
+
+      .metric-value {
+        display: block;
+        margin-top: 5px;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 18px;
+        font-weight: 500;
+        line-height: 1.1;
+      }
+
+      .metric-note {
+        display: block;
+        margin-top: 6px;
+        color: var(--text-3);
+        font-size: 9px;
+      }
+
+      .positive {
+        color: var(--accent);
+      }
+
+      .warning {
+        color: var(--amber);
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-columns: minmax(0, 1.58fr) minmax(310px, 0.82fr);
+        gap: 16px;
+        align-items: start;
+      }
+
+      .panel {
+        min-width: 0;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--surface-1);
+      }
+
+      .panel + .panel {
+        margin-top: 16px;
+      }
+
+      .panel-heading {
+        justify-content: space-between;
+        min-height: 44px;
+        gap: 12px;
+        padding: 0 15px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .panel-heading h2 {
+        margin: 0;
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .panel-heading p {
+        margin: 0;
+        color: var(--text-3);
+        font-size: 10px;
+      }
+
+      .route-hero {
+        padding: 18px 18px 16px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .route-title {
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .route-model-label {
+        color: var(--text-3);
+        font-size: 10px;
+      }
+
+      .route-model {
+        margin-top: 4px;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 25px;
+        font-weight: 600;
+        line-height: 1.1;
+      }
+
+      .route-badge {
+        padding: 5px 8px;
+        color: var(--accent);
+        border: 1px solid #315e50;
+        border-radius: 5px;
+        background: var(--accent-dim);
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 10px;
+      }
+
+      .route-meta {
+        flex-wrap: wrap;
+        gap: 0;
+        margin-top: 17px;
+        border-top: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
+      }
+
+      .route-property {
+        min-width: 120px;
+        flex: 1 1 0;
+        padding: 10px 12px;
+        border-right: 1px solid var(--line);
+      }
+
+      .route-property:last-child {
+        border-right: 0;
+      }
+
+      .route-property span {
+        display: block;
+        color: var(--text-3);
+        font-size: 9px;
+        text-transform: uppercase;
+      }
+
+      .route-property strong {
+        display: block;
+        margin-top: 4px;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 11px;
+        font-weight: 500;
+      }
+
+      .route-reason {
+        margin: 14px 0 0;
+        color: var(--text-2);
+        font-size: 12px;
+        line-height: 1.65;
+      }
+
+      .subsection {
+        padding: 14px 18px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .subsection:last-child {
+        border-bottom: 0;
+      }
+
+      .subsection-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 10px;
+      }
+
+      .subsection-title h3 {
+        margin: 0;
+        color: var(--text-2);
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+      }
+
+      .subsection-title span {
+        color: var(--text-3);
+        font-size: 9px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+      }
+
+      th,
+      td {
+        padding: 8px 7px;
+        overflow: hidden;
+        border-bottom: 1px solid var(--line);
+        text-align: right;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      th {
+        color: var(--text-3);
+        font-size: 9px;
+        font-weight: 500;
+      }
+
+      td {
+        color: var(--text-2);
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 10px;
+      }
+
+      th:first-child,
+      td:first-child {
+        width: 42%;
+        text-align: left;
+      }
+
+      tr:last-child td {
+        border-bottom: 0;
+      }
+
+      .selected-row {
+        background: #13231e;
+      }
+
+      .selected-row td:first-child {
+        color: var(--text);
+      }
+
+      .score {
+        color: var(--accent);
+      }
+
+      .fallback-list {
+        display: grid;
+        gap: 0;
+      }
+
+      .fallback-item {
+        display: grid;
+        grid-template-columns: 22px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 9px;
+        padding: 8px 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .fallback-item:last-child {
+        border-bottom: 0;
+      }
+
+      .attempt-number {
+        color: var(--text-3);
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 9px;
+      }
+
+      .attempt-route {
+        min-width: 0;
+        color: var(--text-2);
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 10px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .attempt-status {
+        font-size: 10px;
+      }
+
+      .composer {
+        padding: 14px;
+      }
+
+      .segmented {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        padding: 3px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: #0d1011;
+      }
+
+      .segment {
+        height: 29px;
+        border: 0;
+        border-radius: 4px;
+        color: var(--text-3);
+        background: transparent;
+        font-size: 11px;
+        cursor: pointer;
+      }
+
+      .segment[aria-selected="true"] {
+        color: var(--text);
+        background: var(--surface-3);
+        box-shadow: inset 0 0 0 1px var(--line-strong);
+      }
+
+      textarea {
+        width: 100%;
+        height: 116px;
+        margin-top: 12px;
+        padding: 12px;
+        resize: vertical;
+        color: var(--text);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        outline: none;
+        background: #0d1011;
+        line-height: 1.55;
+      }
+
+      textarea:focus {
+        border-color: #477a69;
+        box-shadow: 0 0 0 2px #17352c;
+      }
+
+      textarea::placeholder {
+        color: #59615e;
+      }
+
+      .action-row {
+        justify-content: space-between;
+        gap: 10px;
+        margin-top: 10px;
+      }
+
+      .shortcut {
+        color: var(--text-3);
+        font-size: 9px;
+      }
+
+      .send-button {
+        height: 32px;
+        gap: 7px;
+        padding: 0 13px;
+        color: #07110e;
+        border-color: var(--accent);
+        background: var(--accent);
+        font-weight: 600;
+      }
+
+      .send-button:hover {
+        background: #69d6b2;
+      }
+
+      .activity {
+        display: grid;
+      }
+
+      .activity-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 12px;
+        padding: 11px 14px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .activity-row:last-child {
+        border-bottom: 0;
+      }
+
+      .activity-route {
+        min-width: 0;
+      }
+
+      .activity-route strong {
+        display: block;
+        overflow: hidden;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 10px;
+        font-weight: 500;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .activity-route span,
+      .activity-meta span {
+        display: block;
+        margin-top: 3px;
+        color: var(--text-3);
+        font-size: 9px;
+      }
+
+      .activity-meta {
+        text-align: right;
+      }
+
+      .activity-meta strong {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 10px;
+        font-weight: 500;
+      }
+
+      .mobile-provider-toggle {
+        display: none;
+      }
+
+      svg {
+        width: 15px;
+        height: 15px;
+        stroke-width: 1.7;
+      }
+
+      @media (max-width: 980px) {
+        :root {
+          --sidebar: 224px;
+        }
+
+        .workspace {
+          grid-template-columns: 1fr;
+        }
+
+        .metric-strip {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .metric:nth-child(3) {
+          border-right: 0;
+        }
+
+        .metric:nth-child(n + 4) {
+          border-top: 1px solid var(--line);
+        }
+      }
+
+      @media (max-width: 720px) {
+        .app {
+          grid-template-rows: 54px minmax(0, 1fr);
+        }
+
+        .topbar {
+          padding: 0 14px;
+        }
+
+        .brand-copy span,
+        .connection span,
+        .version-button {
+          display: none;
+        }
+
+        .shell {
+          display: block;
+        }
+
+        .sidebar {
+          display: none;
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+        }
+
+        .sidebar[data-mobile-open="true"] {
+          display: block;
+        }
+
+        .mobile-provider-toggle {
+          display: inline-flex;
+        }
+
+        .content {
+          padding: 12px;
+        }
+
+        .metric-strip {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .metric,
+        .metric:nth-child(3) {
+          border-right: 1px solid var(--line);
+          border-top: 1px solid var(--line);
+        }
+
+        .metric:nth-child(-n + 2) {
+          border-top: 0;
+        }
+
+        .metric:nth-child(even) {
+          border-right: 0;
+        }
+
+        .metric:last-child {
+          grid-column: 1 / -1;
+          border-right: 0;
+        }
+
+        .route-title {
+          align-items: flex-start;
+        }
+
+        .route-model {
+          font-size: 21px;
+        }
+
+        .route-property {
+          min-width: 50%;
+          border-bottom: 1px solid var(--line);
+        }
+
+        .route-property:nth-child(2) {
+          border-right: 0;
+        }
+
+        .route-property:nth-child(n + 3) {
+          border-bottom: 0;
+        }
+
+        .panel-heading {
+          align-items: flex-start;
+          flex-direction: column;
+          justify-content: center;
+          padding-top: 9px;
+          padding-bottom: 9px;
+        }
+
+        th:nth-child(3),
+        td:nth-child(3) {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <i data-lucide="route"></i>
+          </div>
+          <div class="brand-copy">
+            <strong>Dispatcher</strong>
+            <span>本地路由控制台</span>
+          </div>
+        </div>
+        <div class="top-actions">
+          <button
+            class="icon-button mobile-provider-toggle"
+            id="providerToggle"
+            title="供应商"
+            aria-label="供应商"
+          >
+            <i data-lucide="panel-left"></i>
+          </button>
+          <div class="connection">
+            <span class="dot"></span>
+            <span>本地服务正常</span>
+          </div>
+          <button class="text-button version-button mono">v0.1.0</button>
+          <button
+            class="text-button"
+            id="languageToggle"
+            title="Switch to English"
+            aria-label="Switch to English"
+          >
+            EN
+          </button>
+          <button class="icon-button" title="刷新" aria-label="刷新">
+            <i data-lucide="refresh-cw"></i>
+          </button>
+        </div>
+      </header>
+
+      <div class="shell">
+        <aside class="sidebar" id="sidebar">
+          <div class="section-label">
+            <span>供应商健康</span>
+            <span>3 个活跃</span>
+          </div>
+
+          <div class="provider-list">
+            <div class="provider" data-open="true">
+              <button class="provider-main">
+                <span class="provider-dot healthy"></span>
+                <span class="provider-name">
+                  <strong>Demo Provider</strong>
+                  <span>1 个模型 · 9 次请求</span>
+                </span>
+                <span class="provider-status">健康</span>
+              </button>
+              <div class="provider-details">
+                <div class="health-grid">
+                  <div><span>成功率</span><strong>100.0%</strong></div>
+                  <div><span>观测延迟</span><strong>1ms</strong></div>
+                  <div><span>熔断状态</span><strong>closed</strong></div>
+                  <div><span>过去 24h</span><strong>9 req</strong></div>
+                </div>
+                <div class="capabilities">
+                  <span class="capability"><i data-lucide="radio"></i>流式</span>
+                  <span class="capability"><i data-lucide="wrench"></i>工具</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="provider" data-open="false">
+              <button class="provider-main">
+                <span class="provider-dot degraded"></span>
+                <span class="provider-name">
+                  <strong>Anthropic</strong>
+                  <span>3 个模型 · 6 次请求</span>
+                </span>
+                <span class="provider-status warning">降级</span>
+              </button>
+              <div class="provider-details">
+                <div class="health-grid">
+                  <div><span>成功率</span><strong>0.0%</strong></div>
+                  <div><span>观测延迟</span><strong>—</strong></div>
+                  <div><span>熔断状态</span><strong>open</strong></div>
+                  <div><span>过去 24h</span><strong>6 req</strong></div>
+                </div>
+                <div class="capabilities">
+                  <span class="capability"><i data-lucide="radio"></i>流式</span>
+                  <span class="capability"><i data-lucide="eye"></i>视觉</span>
+                  <span class="capability"><i data-lucide="wrench"></i>工具</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="provider" data-open="false">
+              <button class="provider-main">
+                <span class="provider-dot degraded"></span>
+                <span class="provider-name">
+                  <strong>Ollama Local</strong>
+                  <span>2 个模型 · 6 次请求</span>
+                </span>
+                <span class="provider-status warning">降级</span>
+              </button>
+              <div class="provider-details">
+                <div class="health-grid">
+                  <div><span>成功率</span><strong>0.0%</strong></div>
+                  <div><span>观测延迟</span><strong>—</strong></div>
+                  <div><span>熔断状态</span><strong>closed</strong></div>
+                  <div><span>过去 24h</span><strong>6 req</strong></div>
+                </div>
+                <div class="capabilities">
+                  <span class="capability"><i data-lucide="hard-drive"></i>本地</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="sidebar-foot">
+            <div>API 地址</div>
+            <div class="mono">localhost:8788/v1</div>
+            <div style="margin-top: 8px">每 10 秒自动刷新</div>
+          </div>
+        </aside>
+
+        <main class="content">
+          <div class="content-inner">
+            <section class="metric-strip" aria-label="路由统计">
+              <div class="metric">
+                <span class="metric-label">总请求数</span>
+                <strong class="metric-value">74</strong>
+                <span class="metric-note">过去 30 天</span>
+              </div>
+              <div class="metric">
+                <span class="metric-label">成功率</span>
+                <strong class="metric-value positive">83.8%</strong>
+                <span class="metric-note">较昨日 +2.4%</span>
+              </div>
+              <div class="metric">
+                <span class="metric-label">总 Token</span>
+                <strong class="metric-value">31.8K</strong>
+                <span class="metric-note">输入 + 输出</span>
+              </div>
+              <div class="metric">
+                <span class="metric-label">平均延迟</span>
+                <strong class="metric-value warning">2.71s</strong>
+                <span class="metric-note">P50 1.84s</span>
+              </div>
+              <div class="metric">
+                <span class="metric-label">总成本</span>
+                <strong class="metric-value">¥0.0816</strong>
+                <span class="metric-note">本月预算 ¥50</span>
+              </div>
+            </section>
+
+            <div class="workspace">
+              <div>
+                <section class="panel">
+                  <div class="panel-heading">
+                    <div>
+                      <h2>最新路由决策</h2>
+                      <p>Codex native · Responses API</p>
+                    </div>
+                    <span class="mono" style="color: var(--text-3); font-size: 10px">
+                      12ms
+                    </span>
+                  </div>
+
+                  <div class="route-hero">
+                    <div class="route-title">
+                      <div>
+                        <div class="route-model-label">已选模型</div>
+                        <div class="route-model">gpt-5.5</div>
+                      </div>
+                      <div class="route-badge">原生路由</div>
+                    </div>
+
+                    <div class="route-meta">
+                      <div class="route-property">
+                        <span>推理力度</span>
+                        <strong>xhigh</strong>
+                      </div>
+                      <div class="route-property">
+                        <span>速度</span>
+                        <strong class="positive">priority</strong>
+                      </div>
+                      <div class="route-property">
+                        <span>任务层级</span>
+                        <strong>complex</strong>
+                      </div>
+                      <div class="route-property">
+                        <span>协议</span>
+                        <strong>responses</strong>
+                      </div>
+                    </div>
+
+                    <p class="route-reason">
+                      请求包含并行前端、后端、安全与测试工作流。Dispatcher
+                      选择旗舰模型和最高推理力度，并启用 priority 速度档位。
+                    </p>
+                  </div>
+
+                  <div class="subsection">
+                    <div class="subsection-title">
+                      <h3>候选比较</h3>
+                      <span>按能力与任务复杂度排序</span>
+                    </div>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>模型</th>
+                          <th>推理</th>
+                          <th>速度</th>
+                          <th>总分</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr class="selected-row">
+                          <td>gpt-5.5</td>
+                          <td>xhigh</td>
+                          <td>priority</td>
+                          <td class="score">0.942</td>
+                        </tr>
+                        <tr>
+                          <td>gpt-5.4</td>
+                          <td>high</td>
+                          <td>priority</td>
+                          <td>0.821</td>
+                        </tr>
+                        <tr>
+                          <td>gpt-5.4-mini</td>
+                          <td>high</td>
+                          <td>standard</td>
+                          <td>0.604</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div class="subsection">
+                    <div class="subsection-title">
+                      <h3>故障转移链</h3>
+                      <span>连接阶段故障转移</span>
+                    </div>
+                    <div class="fallback-list">
+                      <div class="fallback-item">
+                        <span class="attempt-number">01</span>
+                        <span class="attempt-route">openai / gpt-5.5 / priority</span>
+                        <span class="attempt-status positive">已选择</span>
+                      </div>
+                      <div class="fallback-item">
+                        <span class="attempt-number">02</span>
+                        <span class="attempt-route">openai / gpt-5.4 / priority</span>
+                        <span class="attempt-status" style="color: var(--text-3)">待命</span>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="panel">
+                  <div class="panel-heading">
+                    <div>
+                      <h2>供应商明细</h2>
+                      <p>最近 24 小时真实观测</p>
+                    </div>
+                  </div>
+                  <div class="subsection" style="padding-top: 7px">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>供应商</th>
+                          <th>请求</th>
+                          <th>平均延迟</th>
+                          <th>成功率</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td>deepseek</td>
+                          <td>29</td>
+                          <td>226ms</td>
+                          <td class="positive">100.0%</td>
+                        </tr>
+                        <tr>
+                          <td>mimo</td>
+                          <td>17</td>
+                          <td>5966ms</td>
+                          <td class="positive">100.0%</td>
+                        </tr>
+                        <tr>
+                          <td>siliconflow</td>
+                          <td>7</td>
+                          <td>8612ms</td>
+                          <td class="positive">100.0%</td>
+                        </tr>
+                        <tr>
+                          <td>anthropic</td>
+                          <td>6</td>
+                          <td>—</td>
+                          <td style="color: var(--red)">0.0%</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              </div>
+
+              <div>
+                <section class="panel">
+                  <div class="panel-heading">
+                    <div>
+                      <h2>路由测试</h2>
+                      <p>发送一条真实请求</p>
+                    </div>
+                  </div>
+                  <div class="composer">
+                    <div class="segmented" role="tablist" aria-label="路由策略">
+                      <button class="segment" aria-selected="true">智能</button>
+                      <button class="segment" aria-selected="false">省钱</button>
+                      <button class="segment" aria-selected="false">极速</button>
+                    </div>
+                    <textarea
+                      id="prompt"
+                      placeholder="输入任务，例如：审查这个 Rust 服务的错误处理并修复测试..."
+                    >编排前端、后端、安全和测试工作流，完成这个 MVP。</textarea>
+                    <div class="action-row">
+                      <span class="shortcut mono">⌘ Enter</span>
+                      <button class="send-button" id="sendButton">
+                        <i data-lucide="arrow-up"></i>
+                        <span>发送</span>
+                      </button>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="panel">
+                  <div class="panel-heading">
+                    <div>
+                      <h2>最近活动</h2>
+                      <p>最新 4 条路由</p>
+                    </div>
+                  </div>
+                  <div class="activity">
+                    <div class="activity-row">
+                      <div class="activity-route">
+                        <strong>codex / gpt-5.5</strong>
+                        <span>complex · xhigh · priority</span>
+                      </div>
+                      <div class="activity-meta">
+                        <strong class="positive">OK</strong>
+                        <span>刚刚</span>
+                      </div>
+                    </div>
+                    <div class="activity-row">
+                      <div class="activity-route">
+                        <strong>deepseek / deepseek-chat</strong>
+                        <span>medium · auto</span>
+                      </div>
+                      <div class="activity-meta">
+                        <strong class="positive">226ms</strong>
+                        <span>2 分钟前</span>
+                      </div>
+                    </div>
+                    <div class="activity-row">
+                      <div class="activity-route">
+                        <strong>mimo / mimo-v2-pro</strong>
+                        <span>reasoning · save</span>
+                      </div>
+                      <div class="activity-meta">
+                        <strong class="warning">5.96s</strong>
+                        <span>8 分钟前</span>
+                      </div>
+                    </div>
+                    <div class="activity-row">
+                      <div class="activity-route">
+                        <strong>anthropic / claude-sonnet</strong>
+                        <span>reasoning · auto</span>
+                      </div>
+                      <div class="activity-meta">
+                        <strong style="color: var(--red)">ERR</strong>
+                        <span>14 分钟前</span>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+
+    <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+    <script>
+      const languagePairs = [
+        ["本地路由控制台", "Local routing control plane"],
+        ["本地服务正常", "Local service healthy"],
+        ["供应商", "Providers"],
+        ["刷新", "Refresh"],
+        ["供应商健康", "Provider health"],
+        ["3 个活跃", "3 active"],
+        ["1 个模型 · 9 次请求", "1 model · 9 requests"],
+        ["3 个模型 · 6 次请求", "3 models · 6 requests"],
+        ["2 个模型 · 6 次请求", "2 models · 6 requests"],
+        ["健康", "Healthy"],
+        ["降级", "Degraded"],
+        ["成功率", "Success rate"],
+        ["观测延迟", "Observed latency"],
+        ["熔断状态", "Circuit state"],
+        ["过去 24h", "Last 24h"],
+        ["流式", "Streaming"],
+        ["工具", "Tools"],
+        ["视觉", "Vision"],
+        ["本地", "Local"],
+        ["API 地址", "API endpoint"],
+        ["每 10 秒自动刷新", "Auto-refresh every 10s"],
+        ["路由统计", "Routing statistics"],
+        ["总请求数", "Total requests"],
+        ["过去 30 天", "Last 30 days"],
+        ["较昨日 +2.4%", "+2.4% vs yesterday"],
+        ["总 Token", "Total tokens"],
+        ["输入 + 输出", "Input + output"],
+        ["平均延迟", "Average latency"],
+        ["总成本", "Total cost"],
+        ["本月预算 ¥50", "Monthly budget ¥50"],
+        ["最新路由决策", "Latest routing decision"],
+        ["已选模型", "Selected model"],
+        ["原生路由", "native route"],
+        ["推理力度", "Reasoning"],
+        ["速度", "Speed"],
+        ["任务层级", "Agent tier"],
+        ["协议", "Protocol"],
+        [
+          "请求包含并行前端、后端、安全与测试工作流。Dispatcher 选择旗舰模型和最高推理力度，并启用 priority 速度档位。",
+          "The request spans parallel frontend, backend, security, and testing workflows. Dispatcher selected the flagship model, maximum reasoning effort, and priority speed."
+        ],
+        ["候选比较", "Candidate comparison"],
+        ["按能力与任务复杂度排序", "Ranked by capability and task complexity"],
+        ["模型", "Model"],
+        ["推理", "Reasoning"],
+        ["速度", "Speed"],
+        ["总分", "Score"],
+        ["故障转移链", "Fallback chain"],
+        ["连接阶段故障转移", "Connection-stage fallback"],
+        ["已选择", "Selected"],
+        ["待命", "Standby"],
+        ["供应商明细", "Provider breakdown"],
+        ["最近 24 小时真实观测", "Observed over the last 24 hours"],
+        ["供应商", "Provider"],
+        ["请求", "Requests"],
+        ["路由测试", "Route test"],
+        ["发送一条真实请求", "Send a real request"],
+        ["路由策略", "Routing strategy"],
+        ["智能", "Auto"],
+        ["省钱", "Save"],
+        ["极速", "Fast"],
+        ["发送", "Send"],
+        ["路由中...", "Routing..."],
+        ["最近活动", "Recent activity"],
+        ["最新 4 条路由", "Latest 4 routes"],
+        ["刚刚", "Just now"],
+        ["2 分钟前", "2 min ago"],
+        ["8 分钟前", "8 min ago"],
+        ["14 分钟前", "14 min ago"]
+      ];
+
+      const languageLookup = new Map();
+      languagePairs.forEach(([zh, en]) => {
+        languageLookup.set(zh, { zh, en });
+        languageLookup.set(en, { zh, en });
+      });
+
+      const translatableTextNodes = [];
+      const walker = document.createTreeWalker(
+        document.body,
+        NodeFilter.SHOW_TEXT,
+        {
+          acceptNode(node) {
+            const value = node.nodeValue.trim().replace(/\s+/g, " ");
+            return languageLookup.has(value)
+              ? NodeFilter.FILTER_ACCEPT
+              : NodeFilter.FILTER_REJECT;
+          }
+        }
+      );
+      while (walker.nextNode()) {
+        const node = walker.currentNode;
+        const normalized = node.nodeValue.trim().replace(/\s+/g, " ");
+        translatableTextNodes.push({
+          node,
+          pair: languageLookup.get(normalized)
+        });
+      }
+
+      const attributePairs = [
+        ["供应商", "Providers"],
+        ["刷新", "Refresh"],
+        ["路由统计", "Routing statistics"],
+        ["路由策略", "Routing strategy"],
+        [
+          "输入任务，例如：审查这个 Rust 服务的错误处理并修复测试...",
+          "Enter a task, for example: review this Rust service's error handling and fix the tests..."
+        ]
+      ];
+      const attributeLookup = new Map();
+      attributePairs.forEach(([zh, en]) => {
+        attributeLookup.set(zh, { zh, en });
+        attributeLookup.set(en, { zh, en });
+      });
+
+      let currentLanguage = localStorage.getItem("dispatcher-preview-language");
+      if (currentLanguage !== "zh" && currentLanguage !== "en") {
+        currentLanguage = "zh";
+      }
+
+      const languageToggle = document.getElementById("languageToggle");
+      const prompt = document.getElementById("prompt");
+      const initialPrompts = {
+        zh: "编排前端、后端、安全和测试工作流，完成这个 MVP。",
+        en: "Orchestrate frontend, backend, security, and testing workflows to complete this MVP."
+      };
+
+      function translateAttribute(element, attribute, language) {
+        const value = element.getAttribute(attribute);
+        const pair = attributeLookup.get(value);
+        if (pair) element.setAttribute(attribute, pair[language]);
+      }
+
+      function setLanguage(language) {
+        currentLanguage = language;
+        document.documentElement.lang = language === "zh" ? "zh-CN" : "en";
+        document.title =
+          language === "zh"
+            ? "Dispatcher Dashboard 设计预览"
+            : "Dispatcher Dashboard Design Preview";
+
+        translatableTextNodes.forEach(({ node, pair }) => {
+          node.nodeValue = pair[language];
+        });
+
+        document
+          .querySelectorAll("[title], [aria-label], [placeholder]")
+          .forEach((element) => {
+            ["title", "aria-label", "placeholder"].forEach((attribute) => {
+              if (element.hasAttribute(attribute)) {
+                translateAttribute(element, attribute, language);
+              }
+            });
+          });
+
+        if (
+          prompt.value === initialPrompts.zh ||
+          prompt.value === initialPrompts.en
+        ) {
+          prompt.value = initialPrompts[language];
+        }
+
+        languageToggle.textContent = language === "zh" ? "EN" : "中";
+        languageToggle.title =
+          language === "zh" ? "Switch to English" : "切换到中文";
+        languageToggle.setAttribute("aria-label", languageToggle.title);
+        localStorage.setItem("dispatcher-preview-language", language);
+      }
+
+      languageToggle.addEventListener("click", () => {
+        setLanguage(currentLanguage === "zh" ? "en" : "zh");
+      });
+
+      setLanguage(currentLanguage);
+
+      if (window.lucide) {
+        window.lucide.createIcons();
+      }
+
+      document.querySelectorAll(".provider-main").forEach((button) => {
+        button.addEventListener("click", () => {
+          const provider = button.closest(".provider");
+          const nextState = provider.dataset.open !== "true";
+          document
+            .querySelectorAll(".provider")
+            .forEach((item) => (item.dataset.open = "false"));
+          provider.dataset.open = String(nextState);
+        });
+      });
+
+      document.querySelectorAll(".segment").forEach((button) => {
+        button.addEventListener("click", () => {
+          document
+            .querySelectorAll(".segment")
+            .forEach((item) => item.setAttribute("aria-selected", "false"));
+          button.setAttribute("aria-selected", "true");
+        });
+      });
+
+      const sidebar = document.getElementById("sidebar");
+      document.getElementById("providerToggle").addEventListener("click", () => {
+        sidebar.dataset.mobileOpen = sidebar.dataset.mobileOpen !== "true";
+      });
+
+      const sendButton = document.getElementById("sendButton");
+      const send = () => {
+        if (!prompt.value.trim()) return;
+        const original = sendButton.innerHTML;
+        sendButton.disabled = true;
+        sendButton.innerHTML = `<span>${
+          currentLanguage === "zh" ? "路由中..." : "Routing..."
+        }</span>`;
+        window.setTimeout(() => {
+          sendButton.disabled = false;
+          sendButton.innerHTML = original;
+          if (window.lucide) window.lucide.createIcons();
+        }, 700);
+      };
+
+      sendButton.addEventListener("click", send);
+      prompt.addEventListener("keydown", (event) => {
+        if ((event.metaKey || event.ctrlKey) && event.key === "Enter") send();
+      });
+    </script>
+  </body>
+</html>

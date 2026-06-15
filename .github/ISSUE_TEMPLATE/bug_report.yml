@@ -1,0 +1,31 @@
+name: Bug report
+description: Report reproducible Dispatcher behavior that appears incorrect.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Include a minimal configuration and exact steps. Remove all credentials.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Dispatcher version
+      placeholder: v0.1.0-alpha.1
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Operating system, Rust version, browser, and provider.

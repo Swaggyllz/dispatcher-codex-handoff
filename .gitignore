@@ -1,0 +1,29 @@
+.DS_Store
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+dispatcher.toml
+
+# Runtime data
+*.db
+*.sqlite
+*.sqlite3
+
+# Build outputs
+target/
+dist/
+web/dist/
+
+# Package manager artifacts
+node_modules/
+web/node_modules/
+
+# Local backups and scratch files
+.backup/
+coverage/
+release/
+*.log
+.idea/
+.vscode/

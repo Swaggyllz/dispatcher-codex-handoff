@@ -1,0 +1,98 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10.12.3
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm --dir web install --frozen-lockfile
+      - run: pnpm --dir web build
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dashboard
+          path: web/dist
+
+  package:
+    needs: frontend
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: dispatcher-linux-x86_64
+            archive: tar
+          - os: macos-14
+            artifact: dispatcher-macos-aarch64
+            archive: tar
+          - os: windows-latest
+            artifact: dispatcher-windows-x86_64
+            archive: zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/download-artifact@v4
+        with:
+          name: dashboard
+          path: web/dist
+      - run: cargo build --release --bin dispatch
+      - name: Assemble package
+        shell: bash
+        run: |
+          mkdir -p package/web
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            cp target/release/dispatch.exe package/
+          else
+            cp target/release/dispatch package/
+          fi
+          cp -R web/dist package/web/dist
+          cp README.md CHANGELOG.md LICENSE NOTICE dispatcher.example.toml package/
+      - name: Create tarball
+        if: matrix.archive == 'tar'
+        shell: bash
+        run: tar -czf "${{ matrix.artifact }}.tar.gz" -C package .
+      - name: Create zip
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: Compress-Archive -Path package/* -DestinationPath "${{ matrix.artifact }}.zip"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            ${{ matrix.artifact }}.tar.gz
+            ${{ matrix.artifact }}.zip
+          if-no-files-found: ignore
+
+  publish:
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dispatcher-*
+          path: artifacts
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v3
+        with:
+          files: artifacts/*
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}

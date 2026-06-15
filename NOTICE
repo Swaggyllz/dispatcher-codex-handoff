@@ -1,0 +1,11 @@
+Dispatcher
+Copyright (c) 2026 swaggy and Dispatcher contributors
+
+This project originated from MIT-licensed CC Switch source code by Jason Young.
+The original copyright notice and MIT license are preserved in LICENSE.
+
+Dispatcher has since been substantially reworked into a local intelligent model
+router with a Rust workspace, OpenAI/Anthropic/Responses-compatible HTTP APIs,
+provider scoring and fallback, telemetry, and a dedicated React dashboard.
+
+Third-party dependencies retain their respective licenses.

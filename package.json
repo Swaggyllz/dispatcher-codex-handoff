@@ -1,0 +1,16 @@
+{
+  "name": "dispatcher",
+  "version": "0.1.0",
+  "description": "Dispatcher — LLM Intelligent Routing Engine",
+  "type": "module",
+  "scripts": {
+    "dev": "cd web && pnpm dev",
+    "build": "cd web && pnpm build",
+    "typecheck": "cd web && pnpm typecheck",
+    "format": "cd web && pnpm format",
+    "format:check": "cd web && pnpm format:check"
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2"
+  }
+}
