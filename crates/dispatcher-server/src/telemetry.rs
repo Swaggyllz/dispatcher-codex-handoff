@@ -23,6 +23,18 @@ pub struct CodexTelemetryRecord {
     pub error_message: Option<String>,
 }
 
+#[derive(Debug, Clone)]
+pub struct QuotaEventRecord {
+    pub id: String,
+    pub timestamp: chrono::DateTime<chrono::Utc>,
+    pub provider_id: String,
+    pub model_id: String,
+    pub status_code: Option<u16>,
+    pub retry_after_secs: Option<u64>,
+    pub normalized_headroom: Option<f64>,
+    pub source: String,
+}
+
 pub struct TelemetryStore {
     db: Arc<Mutex<Connection>>,
 }
@@ -63,10 +75,33 @@ impl TelemetryStore {
                 error_message TEXT
             );
 
+            CREATE TABLE IF NOT EXISTS quota_events (
+                id TEXT PRIMARY KEY,
+                timestamp TEXT NOT NULL,
+                provider_id TEXT NOT NULL,
+                model_id TEXT NOT NULL,
+                status_code INTEGER,
+                retry_after_secs INTEGER,
+                normalized_headroom REAL,
+                source TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS handoff_packages (
+                package_id TEXT PRIMARY KEY,
+                created_at TEXT NOT NULL,
+                schema_version TEXT NOT NULL,
+                trigger TEXT NOT NULL,
+                confidence TEXT NOT NULL,
+                latest_user_request TEXT NOT NULL,
+                package_json TEXT NOT NULL
+            );
+
             CREATE INDEX IF NOT EXISTS idx_telemetry_timestamp ON telemetry(timestamp);
             CREATE INDEX IF NOT EXISTS idx_telemetry_provider ON telemetry(provider_id);
             CREATE INDEX IF NOT EXISTS idx_telemetry_success ON telemetry(success);
-            CREATE INDEX IF NOT EXISTS idx_codex_routes_timestamp ON codex_routes(timestamp);",
+            CREATE INDEX IF NOT EXISTS idx_codex_routes_timestamp ON codex_routes(timestamp);
+            CREATE INDEX IF NOT EXISTS idx_quota_events_timestamp ON quota_events(timestamp);
+            CREATE INDEX IF NOT EXISTS idx_handoff_packages_created_at ON handoff_packages(created_at);",
         )?;
         ensure_telemetry_agent_tier_column(&conn)?;
 
@@ -121,6 +156,50 @@ impl TelemetryStore {
                 record.status_code,
                 record.latency_ms,
                 record.error_message,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub async fn record_quota_event(&self, record: &QuotaEventRecord) -> anyhow::Result<()> {
+        let db = self.db.lock().await;
+        db.execute(
+            "INSERT INTO quota_events (
+                id, timestamp, provider_id, model_id, status_code, retry_after_secs,
+                normalized_headroom, source
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![
+                record.id,
+                record.timestamp.to_rfc3339(),
+                record.provider_id,
+                record.model_id,
+                record.status_code,
+                record.retry_after_secs,
+                record.normalized_headroom,
+                record.source,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub async fn record_handoff_package(
+        &self,
+        package: &crate::handoff::HandoffPackage,
+    ) -> anyhow::Result<()> {
+        let db = self.db.lock().await;
+        db.execute(
+            "INSERT OR REPLACE INTO handoff_packages (
+                package_id, created_at, schema_version, trigger, confidence,
+                latest_user_request, package_json
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![
+                package.package_id,
+                package.created_at.to_rfc3339(),
+                package.schema_version,
+                package.trigger,
+                package.confidence,
+                package.latest_user_request,
+                serde_json::to_string(package)?,
             ],
         )?;
         Ok(())
@@ -284,6 +363,40 @@ impl TelemetryStore {
             )
             .optional()?;
 
+        let latest_quota_event = db
+            .query_row(
+                "SELECT timestamp, provider_id, model_id, status_code, retry_after_secs,
+                        normalized_headroom, source
+                 FROM quota_events
+                 ORDER BY timestamp DESC, rowid DESC
+                 LIMIT 1",
+                [],
+                |row| {
+                    Ok(serde_json::json!({
+                        "timestamp": row.get::<_, String>(0)?,
+                        "provider_id": row.get::<_, String>(1)?,
+                        "model_id": row.get::<_, String>(2)?,
+                        "status_code": row.get::<_, Option<i64>>(3)?,
+                        "retry_after_secs": row.get::<_, Option<i64>>(4)?,
+                        "normalized_headroom": row.get::<_, Option<f64>>(5)?,
+                        "source": row.get::<_, String>(6)?,
+                    }))
+                },
+            )
+            .optional()?;
+
+        let latest_handoff = db
+            .query_row(
+                "SELECT package_json
+                 FROM handoff_packages
+                 ORDER BY created_at DESC, rowid DESC
+                 LIMIT 1",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?
+            .and_then(|json| serde_json::from_str::<serde_json::Value>(&json).ok());
+
         Ok(serde_json::json!({
             "total_requests": total_requests,
             "total_success": total_success,
@@ -304,6 +417,8 @@ impl TelemetryStore {
             },
             "provider_stats": provider_stats,
             "latest_codex_route": latest_codex_route,
+            "latest_quota_event": latest_quota_event,
+            "latest_handoff": latest_handoff,
         }))
     }
 
@@ -418,6 +533,11 @@ fn cost_breakdown(conn: &Connection, column: &str) -> anyhow::Result<Vec<serde_j
 mod tests {
     use super::*;
     use chrono::{FixedOffset, TimeZone, Utc};
+    use std::path::PathBuf;
+
+    fn temp_db_path(prefix: &str) -> PathBuf {
+        std::env::temp_dir().join(format!("{prefix}-{}.db", uuid::Uuid::new_v4()))
+    }
 
     fn record_at(
         provider_id: &str,
@@ -545,6 +665,73 @@ mod tests {
 
         drop(store);
         std::fs::remove_file(path).unwrap();
+    }
+
+    #[tokio::test]
+    async fn telemetry_stats_include_latest_handoff_package() {
+        let db_path = temp_db_path("dispatcher-handoff-telemetry");
+        let store = TelemetryStore::new(db_path.to_string_lossy().as_ref())
+            .await
+            .unwrap();
+        let package = crate::handoff::EmergencyHandoffInput {
+            requested_model: "gpt-5.5".into(),
+            selected_model: "gpt-5.5".into(),
+            reasoning_effort: "xhigh".into(),
+            speed: "priority".into(),
+            agent_tier: "complex".into(),
+            dispatcher_mode: "auto".into(),
+            latest_user_request: "Finish the implementation".into(),
+            cwd: "/workspace/dispatcher".into(),
+            error_message: "Codex upstream returned HTTP 429 Too Many Requests".into(),
+            signal: crate::handoff::QuotaSignal {
+                is_emergency: true,
+                status_code: Some(429),
+                retry_after_secs: Some(120),
+                normalized_headroom: None,
+                source: "http_429".into(),
+            },
+        }
+        .build();
+
+        store.record_handoff_package(&package).await.unwrap();
+
+        let stats = store.get_stats().await.unwrap();
+        let handoff = &stats["latest_handoff"];
+        assert_eq!(handoff["schema_version"], "dispatcher_handoff.v1");
+        assert_eq!(handoff["trigger"], "rate_limit_429");
+        assert_eq!(handoff["confidence"], "emergency_reconstruction");
+        assert_eq!(handoff["latest_user_request"], "Finish the implementation");
+
+        drop(store);
+        std::fs::remove_file(db_path).unwrap();
+    }
+
+    #[tokio::test]
+    async fn telemetry_stats_include_latest_quota_event() {
+        let db_path = temp_db_path("dispatcher-quota-telemetry");
+        let store = TelemetryStore::new(db_path.to_string_lossy().as_ref())
+            .await
+            .unwrap();
+        let event = QuotaEventRecord {
+            id: "quota_test".into(),
+            timestamp: chrono::Utc::now(),
+            provider_id: "codex".into(),
+            model_id: "gpt-5.5".into(),
+            status_code: Some(429),
+            retry_after_secs: Some(120),
+            normalized_headroom: None,
+            source: "http_429".into(),
+        };
+
+        store.record_quota_event(&event).await.unwrap();
+
+        let stats = store.get_stats().await.unwrap();
+        assert_eq!(stats["latest_quota_event"]["provider_id"], "codex");
+        assert_eq!(stats["latest_quota_event"]["status_code"], 429);
+        assert_eq!(stats["latest_quota_event"]["retry_after_secs"], 120);
+
+        drop(store);
+        std::fs::remove_file(db_path).unwrap();
     }
 
     #[tokio::test]
