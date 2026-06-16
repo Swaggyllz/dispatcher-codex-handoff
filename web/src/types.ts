@@ -115,8 +115,8 @@ export interface HandoffPackageTelemetry {
   schema_version: "dispatcher_handoff.v1";
   package_id: string;
   created_at: string;
-  trigger: string;
-  confidence: string;
+  trigger: "planned" | "quota_warning" | "rate_limit_429" | "manual";
+  confidence: "strong_summary" | "emergency_reconstruction";
   objective: string;
   latest_user_request: string;
   current_status: string;
@@ -140,7 +140,7 @@ export interface HandoffWorkspaceTelemetry {
 }
 
 export interface HandoffExecutionStateTelemetry {
-  mode: string;
+  mode: "plan_only" | "research_only" | "edit_allowed" | "verify_only";
   last_successful_step: string | null;
   next_recommended_step: string;
   blocked_on: string | null;
@@ -156,11 +156,11 @@ export interface HandoffTechnicalContextTelemetry {
 }
 
 export interface HandoffRoutingContextTelemetry {
-  agent_tier: string;
+  agent_tier: AgentTier;
   requested_model: string;
   selected_model: string;
-  reasoning_effort: string;
-  speed: string;
+  reasoning_effort: "low" | "medium" | "high" | "xhigh";
+  speed: "standard" | "priority";
   dispatcher_mode: string;
 }
 
