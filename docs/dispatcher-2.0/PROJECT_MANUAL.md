@@ -81,12 +81,16 @@ Completed:
 - Task 5 documentation complete:
   - Documentation now states the first slice is emergency handoff only.
   - Task 5 verification has been run.
-  - Concern: `cargo fmt --all --check` currently reports formatting diffs in Rust files outside the Task 5 doc-only scope.
+- Format follow-up complete:
+  - `cargo fmt --all` was run after Task 5 surfaced formatting diffs.
+  - Files formatted:
+    - `crates/dispatcher-server/src/handoff.rs`
+    - `crates/dispatcher-server/src/routes/responses.rs`
 
 Current milestone status:
 
 - First slice complete: native Codex quota/rate-limit emergency handoff package persistence and dashboard visibility.
-- Verification status: `cargo test -p dispatcher-server`, `cargo check --workspace`, `pnpm --dir web typecheck`, and `pnpm --dir web build` pass; `cargo fmt --all --check` needs follow-up outside this docs-only task.
+- Verification status: final full verification passed after formatting.
 - Still pending for future phases: planned 10% handoff, automatic fallback execution through `provider-auto`, and primary-route recovery review.
 
 ## Source Of Truth Documents
@@ -152,8 +156,7 @@ native Codex response status/headers
 
 Immediate:
 
-- Resolve the Rust formatting diffs reported by `cargo fmt --all --check` in a code-owned follow-up.
-- Re-run final verification before cutting a release or declaring the milestone ready.
+- Prepare release notes or a PR summary if this milestone will be published.
 
 Future planned phases:
 
@@ -173,6 +176,17 @@ pnpm --dir web format:check
 pnpm --dir web typecheck
 pnpm --dir web build
 ```
+
+Latest final verification result:
+
+- `./scripts/check-open-source-readiness.sh`: passed.
+- `cargo fmt --all --check`: passed.
+- `cargo clippy --workspace --all-targets -- -D warnings`: passed.
+- `cargo test --workspace`: passed.
+- `cargo check --workspace`: passed.
+- `pnpm --dir web format:check`: passed.
+- `pnpm --dir web typecheck`: passed.
+- `pnpm --dir web build`: passed.
 
 ## Subagent Management Rules
 

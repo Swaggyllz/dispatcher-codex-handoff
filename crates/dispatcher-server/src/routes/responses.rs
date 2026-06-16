@@ -1,16 +1,16 @@
 use axum::{
-    Json, Router,
     body::Body,
     extract::State,
-    http::{HeaderMap, StatusCode, header},
+    http::{header, HeaderMap, StatusCode},
     response::{
-        IntoResponse,
         sse::{Event, Sse},
+        IntoResponse,
     },
     routing::post,
+    Json, Router,
 };
-use dispatcher_engine::RequestAnalyzer;
 use dispatcher_engine::types::*;
+use dispatcher_engine::RequestAnalyzer;
 use dispatcher_providers::http_client::build_client;
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
@@ -20,11 +20,11 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crate::routes::responses_compat::{
-    ResponsesSseEvent, ResponsesStreamState, chat_completion_to_response,
+    chat_completion_to_response, ResponsesSseEvent, ResponsesStreamState,
 };
 use crate::{
-    AppState, chat_completion_stream_with_timeout, chat_completion_with_timeout,
-    provider_attempt_timeout, telemetry::CodexTelemetryRecord,
+    chat_completion_stream_with_timeout, chat_completion_with_timeout, provider_attempt_timeout,
+    telemetry::CodexTelemetryRecord, AppState,
 };
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -1375,7 +1375,7 @@ pub fn routes() -> Router<Arc<AppState>> {
 mod tests {
     use super::*;
     use dispatcher_engine::{RoutingConfig, RoutingEngine};
-    use dispatcher_providers::{ProviderRegistry, demo::DemoProvider};
+    use dispatcher_providers::{demo::DemoProvider, ProviderRegistry};
 
     struct ToolStreamProvider {
         capability: ProviderCapability,
@@ -1770,12 +1770,10 @@ mod tests {
         assert_eq!(json["object"], "response");
         assert_eq!(json["status"], "completed");
         assert_eq!(json["output"][0]["type"], "message");
-        assert!(
-            json["output"][0]["content"][0]["text"]
-                .as_str()
-                .unwrap()
-                .contains("hello provider mode")
-        );
+        assert!(json["output"][0]["content"][0]["text"]
+            .as_str()
+            .unwrap()
+            .contains("hello provider mode"));
 
         drop(state);
         std::fs::remove_file(path).unwrap();

@@ -233,17 +233,13 @@ mod tests {
         assert_eq!(package.trigger, "rate_limit_429");
         assert_eq!(package.confidence, "emergency_reconstruction");
         assert_eq!(package.execution_state.mode, "research_only");
-        assert!(
-            package
-                .continuation_prompt
-                .contains("Inspect relevant files and confirm current task state before editing.")
-        );
-        assert!(
-            package
-                .technical_context
-                .assumptions
-                .iter()
-                .any(|item| item.contains("observable"))
-        );
+        assert!(package
+            .continuation_prompt
+            .contains("Inspect relevant files and confirm current task state before editing."));
+        assert!(package
+            .technical_context
+            .assumptions
+            .iter()
+            .any(|item| item.contains("observable")));
     }
 }
