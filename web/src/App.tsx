@@ -74,7 +74,10 @@ export default function App() {
         <main className="dashboard-content">
           <div className="dashboard-content-inner">
             <StatsPanel telemetry={telemetry} isLoading={telemetryLoading} />
-            <QuickTestPanel latestCodexRoute={telemetry?.latest_codex_route} />
+            <QuickTestPanel
+              latestCodexRoute={telemetry?.latest_codex_route}
+              latestHandoff={telemetry?.latest_handoff}
+            />
             <PolicyPanel policy={policy} isLoading={policyLoading} />
             <CostOverviewPanel
               telemetry={telemetry}

@@ -63,6 +63,8 @@ export interface TelemetryStats {
   cost_by_strategy: StrategyCostBreakdown[];
   provider_stats: ProviderStat[];
   latest_codex_route: CodexRouteTelemetry | null;
+  latest_quota_event: QuotaEventTelemetry | null;
+  latest_handoff: HandoffPackageTelemetry | null;
 }
 
 export interface CostSummary {
@@ -97,6 +99,69 @@ export interface CodexRouteTelemetry {
   status_code: number | null;
   latency_ms: number;
   error_message: string | null;
+}
+
+export interface QuotaEventTelemetry {
+  timestamp: string;
+  provider_id: string;
+  model_id: string;
+  status_code: number | null;
+  retry_after_secs: number | null;
+  normalized_headroom: number | null;
+  source: string;
+}
+
+export interface HandoffPackageTelemetry {
+  schema_version: "dispatcher_handoff.v1";
+  package_id: string;
+  created_at: string;
+  trigger: string;
+  confidence: string;
+  objective: string;
+  latest_user_request: string;
+  current_status: string;
+  completion_criteria: string[];
+  workspace: HandoffWorkspaceTelemetry;
+  execution_state: HandoffExecutionStateTelemetry;
+  technical_context: HandoffTechnicalContextTelemetry;
+  routing_context: HandoffRoutingContextTelemetry;
+  continuation_prompt: string;
+  hazards: string[];
+  open_questions: string[];
+}
+
+export interface HandoffWorkspaceTelemetry {
+  cwd: string;
+  repo_name: string | null;
+  branch: string | null;
+  dirty_state: string;
+  touched_files: string[];
+  relevant_files: string[];
+}
+
+export interface HandoffExecutionStateTelemetry {
+  mode: string;
+  last_successful_step: string | null;
+  next_recommended_step: string;
+  blocked_on: string | null;
+  commands_run: string[];
+  verification_run: string[];
+}
+
+export interface HandoffTechnicalContextTelemetry {
+  key_findings: string[];
+  decisions_made: string[];
+  assumptions: string[];
+  constraints: string[];
+}
+
+export interface HandoffRoutingContextTelemetry {
+  agent_tier: string;
+  requested_model: string;
+  selected_model: string;
+  reasoning_effort: string;
+  speed: string;
+  dispatcher_mode: string;
 }
 
 export interface ProviderStat {

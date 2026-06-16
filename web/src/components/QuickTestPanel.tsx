@@ -14,13 +14,16 @@ import {
 import type {
   ChatCompletionResponse,
   CodexRouteTelemetry,
+  HandoffPackageTelemetry,
   RoutingStrategy,
 } from "@/types";
 
 export function QuickTestPanel({
   latestCodexRoute,
+  latestHandoff,
 }: {
   latestCodexRoute?: CodexRouteTelemetry | null;
+  latestHandoff?: HandoffPackageTelemetry | null;
 }) {
   const { t, i18n } = useTranslation();
   const [prompt, setPrompt] = useState("");
@@ -63,9 +66,12 @@ export function QuickTestPanel({
           ) : latestCodexRoute ? (
             <CodexResult
               route={latestCodexRoute}
+              latestHandoff={latestHandoff}
               t={t}
               language={i18n.language}
             />
+          ) : latestHandoff ? (
+            <HandoffResult handoff={latestHandoff} t={t} />
           ) : (
             <EmptyDecision t={t} />
           )}
@@ -110,10 +116,12 @@ export function QuickTestPanel({
 
 function CodexResult({
   route,
+  latestHandoff,
   t,
   language,
 }: {
   route: CodexRouteTelemetry;
+  latestHandoff?: HandoffPackageTelemetry | null;
   t: (key: string) => string;
   language: string;
 }) {
@@ -183,9 +191,84 @@ function CodexResult({
             {formatCodexError(route.error_message, t)}
           </p>
         )}
+
+        {latestHandoff && (
+          <HandoffResult handoff={latestHandoff} t={t} isNested />
+        )}
       </div>
     </div>
   );
+}
+
+function HandoffResult({
+  handoff,
+  t,
+  isNested = false,
+}: {
+  handoff: HandoffPackageTelemetry;
+  t: (key: string) => string;
+  isNested?: boolean;
+}) {
+  const content = (
+    <>
+      <div className="route-result-title">
+        <div>
+          <span>{t("dashboard.latestHandoff")}</span>
+          <strong>{handoff.routing_context.selected_model}</strong>
+        </div>
+        <span className="codex-outcome is-failed">
+          {t("dashboard.emergencyReconstruction")}
+        </span>
+      </div>
+
+      <div className="route-properties">
+        <RouteProperty
+          label={t("dashboard.handoffTrigger")}
+          value={formatHandoffValue(handoff.trigger)}
+        />
+        <RouteProperty
+          label={t("dashboard.handoffConfidence")}
+          value={formatHandoffValue(handoff.confidence)}
+        />
+        <RouteProperty
+          label={t("dashboard.executionMode")}
+          value={formatHandoffValue(handoff.execution_state.mode)}
+        />
+        <RouteProperty
+          label={t("dashboard.selectedModel")}
+          value={handoff.routing_context.selected_model}
+        />
+      </div>
+
+      <div className="selection-basis codex-selection-basis">
+        <span>{t("dashboard.nextRecommendedStep")}</span>
+        <strong>{handoff.execution_state.next_recommended_step}</strong>
+      </div>
+
+      <div className="selection-basis codex-selection-basis">
+        <span>{t("dashboard.latestUserRequest")}</span>
+        <strong>{handoff.latest_user_request}</strong>
+      </div>
+    </>
+  );
+
+  if (isNested) {
+    return (
+      <ResultSection title={t("dashboard.handoffStatus")}>
+        {content}
+      </ResultSection>
+    );
+  }
+
+  return (
+    <div className="route-result codex-route-result">
+      <div className="route-result-hero">{content}</div>
+    </div>
+  );
+}
+
+function formatHandoffValue(value: string) {
+  return value.replace(/_/g, " ");
 }
 
 function formatCodexReason(route: CodexRouteTelemetry, language: string) {
