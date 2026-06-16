@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowUp, Loader2, Route } from "lucide-react";
+import { ArrowUp, Check, Copy, Loader2, Route } from "lucide-react";
 import { StrategySelector } from "@/components/StrategySelector";
 import { useChatCompletion } from "@/hooks/useChatCompletion";
 import { extractErrorMessage } from "@/utils/errorUtils";
@@ -209,6 +209,18 @@ function HandoffResult({
   t: (key: string) => string;
   isNested?: boolean;
 }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyPrompt = async () => {
+    try {
+      await navigator.clipboard.writeText(handoff.continuation_prompt);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setCopied(false);
+    }
+  };
+
   const content = (
     <>
       <div className="route-result-title">
@@ -248,6 +260,19 @@ function HandoffResult({
       <div className="selection-basis codex-selection-basis">
         <span>{t("dashboard.latestUserRequest")}</span>
         <strong>{handoff.latest_user_request}</strong>
+      </div>
+
+      <div className="handoff-actions">
+        <button
+          type="button"
+          className="handoff-copy-button"
+          onClick={handleCopyPrompt}
+        >
+          {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+          {copied
+            ? t("dashboard.handoffPromptCopied")
+            : t("dashboard.copyHandoffPrompt")}
+        </button>
       </div>
     </>
   );

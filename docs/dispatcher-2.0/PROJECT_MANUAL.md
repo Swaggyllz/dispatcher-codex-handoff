@@ -86,11 +86,15 @@ Completed:
   - Files formatted:
     - `crates/dispatcher-server/src/handoff.rs`
     - `crates/dispatcher-server/src/routes/responses.rs`
+- Continuation prompt copy action complete:
+  - Dashboard handoff cards now include a user-approved copy action for `continuation_prompt`.
+  - This does not execute fallback models or switch providers automatically.
+  - Verification passed: `pnpm --dir web format:check`, `pnpm --dir web typecheck`, and `pnpm --dir web build`.
 
 Current milestone status:
 
 - First slice complete: native Codex quota/rate-limit emergency handoff package persistence and dashboard visibility.
-- Verification status: final full verification passed after formatting.
+- Verification status: final full verification passed after formatting; continuation prompt copy action passed frontend verification.
 - Still pending for future phases: planned 10% handoff, automatic fallback execution through `provider-auto`, and primary-route recovery review.
 
 ## Source Of Truth Documents

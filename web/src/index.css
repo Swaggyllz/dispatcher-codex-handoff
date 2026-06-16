@@ -1172,6 +1172,41 @@ button {
   line-height: 1.55;
 }
 
+.handoff-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.handoff-copy-button {
+  align-items: center;
+  background: hsl(var(--bg-elevated));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius-sm);
+  color: hsl(var(--fg-primary));
+  display: inline-flex;
+  font-size: 0.75rem;
+  font-weight: 700;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 10px;
+  transition:
+    border-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.handoff-copy-button:hover {
+  border-color: hsl(var(--accent));
+  color: hsl(var(--accent));
+  transform: translateY(-1px);
+}
+
+.handoff-copy-button svg {
+  height: 14px;
+  width: 14px;
+}
+
 .policy-panel .panel-heading > svg {
   width: 15px;
   height: 15px;

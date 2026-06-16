@@ -34,6 +34,8 @@
     "selectedModel": "Selected model",
     "nextRecommendedStep": "Next recommended step",
     "latestUserRequest": "Latest user request",
+    "copyHandoffPrompt": "Copy handoff prompt",
+    "handoffPromptCopied": "Prompt copied",
     "requestedModel": "Requested model",
     "reasoningEffort": "Reasoning effort",
     "speed": "Speed",
