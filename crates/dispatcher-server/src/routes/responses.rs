@@ -597,8 +597,7 @@ fn latest_user_text(request: &ResponsesRequest) -> String {
         .iter()
         .rev()
         .find(|item| {
-            item.item_type == "message"
-                && matches!(item.role.as_deref().unwrap_or("user"), "user" | "developer")
+            item.item_type == "message" && item.role.as_deref().unwrap_or("user") == "user"
         })
         .and_then(|item| {
             item.content
@@ -1646,6 +1645,51 @@ mod tests {
         };
 
         assert_eq!(latest_user_text(&request), "second");
+    }
+
+    #[test]
+    fn latest_user_text_ignores_developer_messages() {
+        let request = ResponsesRequest {
+            model: "gpt-5.5".into(),
+            instructions: None,
+            input: vec![
+                ResponseInputItem {
+                    item_type: "message".into(),
+                    role: Some("user".into()),
+                    content: vec![ResponseContentPart {
+                        content_type: "input_text".into(),
+                        text: Some("actual user request".into()),
+                        image_url: None,
+                    }],
+                    name: None,
+                    arguments: None,
+                    call_id: None,
+                    output: None,
+                },
+                ResponseInputItem {
+                    item_type: "message".into(),
+                    role: Some("developer".into()),
+                    content: vec![ResponseContentPart {
+                        content_type: "input_text".into(),
+                        text: Some("internal routing instruction".into()),
+                        image_url: None,
+                    }],
+                    name: None,
+                    arguments: None,
+                    call_id: None,
+                    output: None,
+                },
+            ],
+            tools: vec![],
+            stream: false,
+            max_output_tokens: None,
+            temperature: None,
+            reasoning: None,
+            service_tier: None,
+            extra: Default::default(),
+        };
+
+        assert_eq!(latest_user_text(&request), "actual user request");
     }
 
     #[test]
