@@ -86,6 +86,20 @@ The first implementation plan should cover Phases 2 and 3 only:
 
 Planned handoff and automatic fallback execution should come after emergency handoff is observable and testable.
 
+## Implementation Status
+
+Phase 2/3 first slice:
+
+- Structured quota event storage is implemented for native Codex emergency signals.
+- Emergency `dispatcher_handoff.v1` package persistence is implemented.
+- Dashboard telemetry shows the latest emergency handoff package.
+
+Still pending:
+
+- Planned 10% handoff from reliable quota snapshots.
+- Automatic fallback execution through `provider-auto`.
+- Primary-route recovery review workflow.
+
 ## Acceptance Criteria
 
 - A simulated native Codex `429` creates a persisted handoff package.
@@ -94,4 +108,3 @@ Planned handoff and automatic fallback execution should come after emergency han
 - Existing Codex native routing tests still pass.
 - Existing provider-auto tests still pass.
 - No hosted-tool compatibility claims are added.
-

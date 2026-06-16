@@ -54,15 +54,40 @@ Completed:
   - File:
     - `crates/dispatcher-server/src/telemetry.rs`
   - Adds `quota_events`, `handoff_packages`, `record_quota_event`, `record_handoff_package`, `latest_quota_event`, and `latest_handoff`.
+- Task 3 committed:
+  - `5b722b8 feat: create codex emergency handoffs`
+  - File:
+    - `crates/dispatcher-server/src/routes/responses.rs`
+  - Creates emergency handoff packages on native Codex `429` / quota-like responses and preserves upstream response status/body.
+- Review fix committed:
+  - `a4fe5ee fix: keep codex handoff user request scoped`
+  - File:
+    - `crates/dispatcher-server/src/routes/responses.rs`
+  - Ensures `latest_user_request` is derived from user messages only.
+- Task 4 committed:
+  - `3a0d621 feat: show codex handoff status`
+  - Files:
+    - `web/src/types.ts`
+    - `web/src/App.tsx`
+    - `web/src/components/QuickTestPanel.tsx`
+    - `web/src/i18n/locales/en.json`
+    - `web/src/i18n/locales/zh.json`
+  - Shows the latest emergency handoff in dashboard telemetry.
+- Review fix committed:
+  - `1ca4a8a fix: narrow codex handoff telemetry types`
+  - File:
+    - `web/src/types.ts`
+  - Narrows frontend handoff telemetry union types.
+- Task 5 documentation complete:
+  - Documentation now states the first slice is emergency handoff only.
+  - Task 5 verification has been run.
+  - Concern: `cargo fmt --all --check` currently reports formatting diffs in Rust files outside the Task 5 doc-only scope.
 
-In progress:
+Current milestone status:
 
-- Task 3: create emergency handoff on native Codex 429.
-
-Pending:
-
-- Task 4: dashboard handoff display.
-- Task 5: docs and verification.
+- First slice complete: native Codex quota/rate-limit emergency handoff package persistence and dashboard visibility.
+- Verification status: `cargo test -p dispatcher-server`, `cargo check --workspace`, `pnpm --dir web typecheck`, and `pnpm --dir web build` pass; `cargo fmt --all --check` needs follow-up outside this docs-only task.
+- Still pending for future phases: planned 10% handoff, automatic fallback execution through `provider-auto`, and primary-route recovery review.
 
 ## Source Of Truth Documents
 
@@ -123,73 +148,20 @@ native Codex response status/headers
   - `latest_quota_event`
   - `latest_handoff`
 
-## Next Task: Task 3
+## Next Steps
 
-Task 3 title:
+Immediate:
 
-```text
-Create Emergency Handoff On Native Codex 429
-```
+- Resolve the Rust formatting diffs reported by `cargo fmt --all --check` in a code-owned follow-up.
+- Re-run final verification before cutting a release or declaring the milestone ready.
 
-Allowed files:
+Future planned phases:
 
-- `crates/dispatcher-server/src/routes/responses.rs`
+- Planned handoff from reliable quota snapshots. Do not claim exact 10% remaining until upstream quota headers are reliable and normalized.
+- User-approved fallback continuation through `provider-auto`. Do not automatically execute fallback models in the current slice.
+- Primary-route recovery review showing the handoff package, fallback model, changed files, commands run, and verification status.
 
-What to implement:
-
-- Add `latest_user_text(&ResponsesRequest) -> String`.
-- Pass the original `ResponsesRequest` into `forward_codex_response`.
-- After native Codex upstream response status is known, call `QuotaSignal::from_response(status, response.headers())`.
-- If `is_emergency`:
-  - record `QuotaEventRecord`
-  - build `EmergencyHandoffInput`
-  - persist `HandoffPackage`
-  - add diagnostic response headers:
-    - `x-dispatcher-handoff: emergency`
-    - `x-dispatcher-handoff-confidence: emergency_reconstruction`
-- Keep upstream status and body unchanged.
-
-What not to implement:
-
-- Do not retry through `provider-auto`.
-- Do not add planned handoff logic.
-- Do not add dashboard UI in Task 3.
-- Do not touch provider metadata.
-
-Suggested tests:
-
-- `latest_user_text_extracts_last_message_text`
-- `codex_quota_signal_detects_429`
-- Existing `responses` tests must continue to pass.
-
-Command:
-
-```bash
-cargo test -p dispatcher-server responses --lib
-```
-
-## Remaining Tasks After Task 3
-
-Task 4:
-
-- Add frontend types for `latest_quota_event` and `latest_handoff`.
-- Pass `latest_handoff` to `QuickTestPanel`.
-- Show latest handoff status near the latest Codex route.
-- Add English and Chinese i18n strings.
-- Run:
-
-```bash
-pnpm --dir web typecheck
-pnpm --dir web build
-```
-
-Task 5:
-
-- Update `docs/dispatcher-2.0/05-mvp-scope-and-plan.md`.
-- Update `README.zh-CN.md` with the Codex handoff experiment note.
-- Run backend and frontend verification.
-
-Final verification:
+Final verification reference:
 
 ```bash
 ./scripts/check-open-source-readiness.sh
@@ -234,4 +206,3 @@ The user explicitly said:
 ```
 
 So this manual must stay current whenever a task completes.
-

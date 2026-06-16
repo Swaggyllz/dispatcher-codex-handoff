@@ -193,6 +193,13 @@ curl http://localhost:8787/v1/chat/completions \
 使用 `X-Dispatcher-Mode = "auto"` 保留 Codex 原生链路。Dispatcher 会选择模型、
 推理强度和速度，不会把请求转换成第三方供应商协议。
 
+### Codex 交接模式实验
+
+Dispatcher 2.0 的第一阶段会在 Codex 原生路由遇到 429 或明确额度压力时记录
+`dispatcher_handoff.v1` 应急交接包。该交接包会出现在控制台 telemetry 中，帮助用户
+把当前任务交给备用模型继续。第一阶段只做可观测交接，不自动承诺 10% 精确余额、
+不模拟托管工具，也不自动切换到第三方模型。
+
 ### 跨供应商路由
 
 使用 `provider-auto`，通过 Dispatcher 进程中配置的供应商凭据处理 Responses 请求：
