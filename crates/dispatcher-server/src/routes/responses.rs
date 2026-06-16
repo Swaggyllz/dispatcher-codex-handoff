@@ -1,16 +1,16 @@
 use axum::{
+    Json, Router,
     body::Body,
     extract::State,
-    http::{header, HeaderMap, StatusCode},
+    http::{HeaderMap, StatusCode, header},
     response::{
-        sse::{Event, Sse},
         IntoResponse,
+        sse::{Event, Sse},
     },
     routing::post,
-    Json, Router,
 };
-use dispatcher_engine::types::*;
 use dispatcher_engine::RequestAnalyzer;
+use dispatcher_engine::types::*;
 use dispatcher_providers::http_client::build_client;
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
@@ -20,11 +20,11 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crate::routes::responses_compat::{
-    chat_completion_to_response, ResponsesSseEvent, ResponsesStreamState,
+    ResponsesSseEvent, ResponsesStreamState, chat_completion_to_response,
 };
 use crate::{
-    chat_completion_stream_with_timeout, chat_completion_with_timeout, provider_attempt_timeout,
-    telemetry::CodexTelemetryRecord, AppState,
+    AppState, chat_completion_stream_with_timeout, chat_completion_with_timeout,
+    provider_attempt_timeout, telemetry::CodexTelemetryRecord,
 };
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -591,6 +591,25 @@ fn responses_to_model_request(request: &ResponsesRequest) -> ModelRequest {
     }
 }
 
+fn latest_user_text(request: &ResponsesRequest) -> String {
+    request
+        .input
+        .iter()
+        .rev()
+        .find(|item| {
+            item.item_type == "message"
+                && matches!(item.role.as_deref().unwrap_or("user"), "user" | "developer")
+        })
+        .and_then(|item| {
+            item.content
+                .iter()
+                .filter_map(|part| part.text.as_deref())
+                .find(|text| !text.trim().is_empty())
+        })
+        .unwrap_or("")
+        .to_string()
+}
+
 async fn responses(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -650,6 +669,7 @@ async fn responses(
 
     forward_codex_response(
         &state,
+        &request,
         request.model.as_str(),
         upstream_body,
         &route,
@@ -1079,6 +1099,7 @@ async fn record_provider_telemetry(
 
 async fn forward_codex_response(
     state: &Arc<AppState>,
+    original_request: &ResponsesRequest,
     requested_model: &str,
     upstream_body: serde_json::Value,
     route: &CodexRoute,
@@ -1251,6 +1272,42 @@ async fn forward_codex_response(
     }
 
     let status = response.status();
+    let quota_signal = crate::handoff::QuotaSignal::from_response(status, response.headers());
+    let handoff_emergency = quota_signal.is_emergency;
+    if handoff_emergency {
+        let event = crate::telemetry::QuotaEventRecord {
+            id: uuid::Uuid::new_v4().to_string(),
+            timestamp: chrono::Utc::now(),
+            provider_id: "codex".into(),
+            model_id: effective_route.model.clone(),
+            status_code: quota_signal.status_code,
+            retry_after_secs: quota_signal.retry_after_secs,
+            normalized_headroom: quota_signal.normalized_headroom,
+            source: quota_signal.source.clone(),
+        };
+        if let Err(error) = state.telemetry.record_quota_event(&event).await {
+            tracing::warn!("Failed to record Codex quota event: {error}");
+        }
+
+        let package = crate::handoff::EmergencyHandoffInput {
+            requested_model: requested_model.into(),
+            selected_model: effective_route.model.clone(),
+            reasoning_effort: effective_route.reasoning_effort.clone(),
+            speed: codex_speed_label(effective_route.speed).into(),
+            agent_tier: format!("{:?}", effective_route.agent_tier).to_lowercase(),
+            dispatcher_mode: "auto".into(),
+            latest_user_request: latest_user_text(original_request),
+            cwd: std::env::current_dir()
+                .map(|path| path.display().to_string())
+                .unwrap_or_default(),
+            error_message: format!("Codex upstream returned HTTP {status}"),
+            signal: quota_signal,
+        }
+        .build();
+        if let Err(error) = state.telemetry.record_handoff_package(&package).await {
+            tracing::warn!("Failed to record Codex handoff package: {error}");
+        }
+    }
     let telemetry_error =
         (!status.is_success()).then(|| format!("Codex upstream returned HTTP {status}"));
     record_codex_outcome(
@@ -1284,6 +1341,13 @@ async fn forward_codex_response(
                 "false"
             },
         );
+    if handoff_emergency {
+        builder = builder.header("x-dispatcher-handoff", "emergency");
+        builder = builder.header(
+            "x-dispatcher-handoff-confidence",
+            "emergency_reconstruction",
+        );
+    }
     if let Some(content_type) = content_type {
         builder = builder.header(header::CONTENT_TYPE, content_type);
     }
@@ -1312,7 +1376,7 @@ pub fn routes() -> Router<Arc<AppState>> {
 mod tests {
     use super::*;
     use dispatcher_engine::{RoutingConfig, RoutingEngine};
-    use dispatcher_providers::{demo::DemoProvider, ProviderRegistry};
+    use dispatcher_providers::{ProviderRegistry, demo::DemoProvider};
 
     struct ToolStreamProvider {
         capability: ProviderCapability,
@@ -1539,6 +1603,63 @@ mod tests {
         assert_eq!(unsupported_provider_tools(&request), vec!["web_search"]);
     }
 
+    #[test]
+    fn latest_user_text_extracts_last_message_text() {
+        let request = ResponsesRequest {
+            model: "gpt-5.5".into(),
+            instructions: None,
+            input: vec![
+                ResponseInputItem {
+                    item_type: "message".into(),
+                    role: Some("user".into()),
+                    content: vec![ResponseContentPart {
+                        content_type: "input_text".into(),
+                        text: Some("first".into()),
+                        image_url: None,
+                    }],
+                    name: None,
+                    arguments: None,
+                    call_id: None,
+                    output: None,
+                },
+                ResponseInputItem {
+                    item_type: "message".into(),
+                    role: Some("user".into()),
+                    content: vec![ResponseContentPart {
+                        content_type: "input_text".into(),
+                        text: Some("second".into()),
+                        image_url: None,
+                    }],
+                    name: None,
+                    arguments: None,
+                    call_id: None,
+                    output: None,
+                },
+            ],
+            tools: vec![],
+            stream: false,
+            max_output_tokens: None,
+            temperature: None,
+            reasoning: None,
+            service_tier: None,
+            extra: Default::default(),
+        };
+
+        assert_eq!(latest_user_text(&request), "second");
+    }
+
+    #[test]
+    fn codex_quota_signal_detects_429() {
+        let mut headers = HeaderMap::new();
+        headers.insert("retry-after", "60".parse().unwrap());
+
+        let signal =
+            crate::handoff::QuotaSignal::from_response(StatusCode::TOO_MANY_REQUESTS, &headers);
+
+        assert!(signal.is_emergency);
+        assert_eq!(signal.retry_after_secs, Some(60));
+    }
+
     async fn provider_test_state() -> (Arc<AppState>, std::path::PathBuf) {
         let mut registry = ProviderRegistry::new();
         registry.register(Arc::new(DemoProvider::new()));
@@ -1605,10 +1726,12 @@ mod tests {
         assert_eq!(json["object"], "response");
         assert_eq!(json["status"], "completed");
         assert_eq!(json["output"][0]["type"], "message");
-        assert!(json["output"][0]["content"][0]["text"]
-            .as_str()
-            .unwrap()
-            .contains("hello provider mode"));
+        assert!(
+            json["output"][0]["content"][0]["text"]
+                .as_str()
+                .unwrap()
+                .contains("hello provider mode")
+        );
 
         drop(state);
         std::fs::remove_file(path).unwrap();
