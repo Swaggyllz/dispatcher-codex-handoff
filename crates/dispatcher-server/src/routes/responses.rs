@@ -1273,7 +1273,7 @@ async fn forward_codex_response(
     let status = response.status();
     let quota_signal = crate::handoff::QuotaSignal::from_response(status, response.headers());
     let handoff_emergency = quota_signal.is_emergency;
-    if handoff_emergency {
+    if handoff_emergency || quota_signal.normalized_headroom.is_some() {
         let event = crate::telemetry::QuotaEventRecord {
             id: uuid::Uuid::new_v4().to_string(),
             timestamp: chrono::Utc::now(),
@@ -1287,7 +1287,9 @@ async fn forward_codex_response(
         if let Err(error) = state.telemetry.record_quota_event(&event).await {
             tracing::warn!("Failed to record Codex quota event: {error}");
         }
+    }
 
+    if handoff_emergency {
         let package = crate::handoff::EmergencyHandoffInput {
             requested_model: requested_model.into(),
             selected_model: effective_route.model.clone(),

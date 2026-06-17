@@ -90,11 +90,16 @@ Completed:
   - Dashboard handoff cards now include a user-approved copy action for `continuation_prompt`.
   - This does not execute fallback models or switch providers automatically.
   - Verification passed: `pnpm --dir web format:check`, `pnpm --dir web typecheck`, and `pnpm --dir web build`.
+- Rate-limit header headroom parsing complete:
+  - `QuotaSignal::from_response` now reads reliable `x-ratelimit-limit-*` and `x-ratelimit-remaining-*` header pairs.
+  - It records the minimum normalized headroom when both `limit` and `remaining` are present.
+  - Native Codex responses with header-derived headroom record a quota event even when they are not emergency handoffs.
+  - This does not trigger planned 10% handoff and does not switch providers automatically.
 
 Current milestone status:
 
 - First slice complete: native Codex quota/rate-limit emergency handoff package persistence and dashboard visibility.
-- Verification status: final full verification passed after formatting; continuation prompt copy action passed frontend verification.
+- Verification status: final full verification passed after formatting; continuation prompt copy action passed frontend verification; rate-limit header parsing passed focused backend tests.
 - Still pending for future phases: planned 10% handoff, automatic fallback execution through `provider-auto`, and primary-route recovery review.
 
 ## Source Of Truth Documents
@@ -164,7 +169,7 @@ Immediate:
 
 Future planned phases:
 
-- Planned handoff from reliable quota snapshots. Do not claim exact 10% remaining until upstream quota headers are reliable and normalized.
+- Planned handoff from reliable quota snapshots. Header-derived normalized headroom is now recorded, but no planned handoff trigger has been implemented.
 - User-approved fallback continuation through `provider-auto`. Do not automatically execute fallback models in the current slice.
 - Primary-route recovery review showing the handoff package, fallback model, changed files, commands run, and verification status.
 

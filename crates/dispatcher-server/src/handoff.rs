@@ -17,21 +17,57 @@ impl QuotaSignal {
             .get("retry-after")
             .and_then(|value| value.to_str().ok())
             .and_then(|value| value.parse::<u64>().ok());
+        let normalized_headroom = normalized_rate_limit_headroom(headers);
 
         Self {
             is_emergency: status == StatusCode::TOO_MANY_REQUESTS || retry_after_secs.is_some(),
             status_code: Some(status.as_u16()),
             retry_after_secs,
-            normalized_headroom: None,
+            normalized_headroom,
             source: if status == StatusCode::TOO_MANY_REQUESTS {
                 "http_429".into()
             } else if retry_after_secs.is_some() {
                 "retry_after".into()
+            } else if normalized_headroom.is_some() {
+                "rate_limit_headers".into()
             } else {
                 "http_status".into()
             },
         }
     }
+}
+
+fn normalized_rate_limit_headroom(headers: &HeaderMap) -> Option<f64> {
+    [
+        (
+            "x-ratelimit-remaining-requests",
+            "x-ratelimit-limit-requests",
+        ),
+        ("x-ratelimit-remaining-tokens", "x-ratelimit-limit-tokens"),
+        (
+            "x-ratelimit-remaining-input-tokens",
+            "x-ratelimit-limit-input-tokens",
+        ),
+        (
+            "x-ratelimit-remaining-output-tokens",
+            "x-ratelimit-limit-output-tokens",
+        ),
+    ]
+    .into_iter()
+    .filter_map(|(remaining_header, limit_header)| {
+        let remaining = header_f64(headers, remaining_header)?;
+        let limit = header_f64(headers, limit_header)?;
+        (limit > 0.0).then_some((remaining / limit).clamp(0.0, 1.0))
+    })
+    .min_by(|left, right| left.total_cmp(right))
+}
+
+fn header_f64(headers: &HeaderMap, name: &str) -> Option<f64> {
+    headers
+        .get(name)
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .and_then(|value| value.parse::<f64>().ok())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -204,6 +240,33 @@ mod tests {
         assert_eq!(signal.retry_after_secs, Some(120));
         assert_eq!(signal.normalized_headroom, None);
         assert_eq!(signal.source, "retry_after");
+    }
+
+    #[test]
+    fn rate_limit_headers_calculate_minimum_normalized_headroom() {
+        let mut headers = HeaderMap::new();
+        headers.insert("x-ratelimit-limit-requests", "100".parse().unwrap());
+        headers.insert("x-ratelimit-remaining-requests", "25".parse().unwrap());
+        headers.insert("x-ratelimit-limit-tokens", "1000".parse().unwrap());
+        headers.insert("x-ratelimit-remaining-tokens", "100".parse().unwrap());
+
+        let signal = QuotaSignal::from_response(StatusCode::OK, &headers);
+
+        assert!(!signal.is_emergency);
+        assert_eq!(signal.normalized_headroom, Some(0.1));
+        assert_eq!(signal.source, "rate_limit_headers");
+    }
+
+    #[test]
+    fn rate_limit_headers_do_not_guess_when_limit_is_missing() {
+        let mut headers = HeaderMap::new();
+        headers.insert("x-ratelimit-remaining-requests", "5".parse().unwrap());
+
+        let signal = QuotaSignal::from_response(StatusCode::OK, &headers);
+
+        assert!(!signal.is_emergency);
+        assert_eq!(signal.normalized_headroom, None);
+        assert_eq!(signal.source, "http_status");
     }
 
     #[test]
