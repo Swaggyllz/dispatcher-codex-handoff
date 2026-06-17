@@ -163,6 +163,7 @@ Current milestone status:
   - `main` was pushed to `v2/main`; the local `main` branch now tracks `v2/main`.
   - New repository check passed: public repo, default branch `main`, README renders with Dispatcher 2.0 heading.
   - `v0.2.0` tag was created and pushed to `v2`.
+  - GitHub Release `v0.2.0` was created on `Swaggyllz/dispatcher-codex-handoff`.
 - Verification status: full release readiness verification passed again after app-like dashboard, release metadata, and version alignment updates on 2026-06-17.
 - Still pending for future phases: planned handoff from reliable quota snapshots, automatic background fallback execution, streaming continuation persistence, and richer primary-route reclaim workflows.
 
@@ -233,7 +234,7 @@ native Codex response status/headers
 Immediate:
 
 - Do not push to `origin main`.
-- Optional: create a GitHub Release for the already-pushed `v0.2.0` tag on the new `v2` repository.
+- No immediate release task remains for `v0.2.0`.
 - If any code or release-configuration changes are made after `v0.2.0`, rerun the full verification matrix before publishing another tag.
 
 Future planned phases:
