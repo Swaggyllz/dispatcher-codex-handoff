@@ -1,6 +1,6 @@
 # Dispatcher 2.0 Project Manual
 
-Last updated: 2026-06-16
+Last updated: 2026-06-17
 
 ## Purpose
 
@@ -96,10 +96,13 @@ Completed:
   - Native Codex responses with header-derived headroom record a quota event even when they are not emergency handoffs.
   - This does not trigger planned 10% handoff and does not switch providers automatically.
 - Dashboard quota signal display complete:
+  - `c3c0e1f feat: show codex quota headroom`
   - Quick Test now shows the latest observed Codex quota signal from `/v1/telemetry.latest_quota_event`.
   - It displays normalized headroom only when reliable upstream rate-limit header pairs were observed.
   - This is observational telemetry only; it does not trigger planned 10% handoff or automatic fallback execution.
 - User-approved fallback continuation complete:
+  - `82498fb feat: continue codex handoffs via provider auto`
+  - `a5752b8 feat: show fallback continuation route`
   - Dashboard handoff cards now include a user-clicked continuation action.
   - The action sends `continuation_prompt` to `POST /v1/responses` with `X-Dispatcher-Mode: provider-auto`.
   - The continuation result displays the observed fallback provider/model from dispatcher response headers.
@@ -108,8 +111,9 @@ Completed:
 Current milestone status:
 
 - First slice complete: native Codex quota/rate-limit emergency handoff package persistence and dashboard visibility.
+- Second slice complete: user-approved provider-auto continuation from the emergency handoff card.
 - Verification status: final full verification passed after formatting; continuation prompt copy action passed frontend verification; rate-limit header parsing passed focused backend tests; dashboard quota signal display passed frontend verification; user-approved fallback continuation passed frontend verification.
-- Still pending for future phases: planned 10% handoff, automatic fallback execution through `provider-auto`, and primary-route recovery review.
+- Still pending for future phases: planned handoff from reliable quota snapshots, automatic background fallback execution, and primary-route recovery review.
 
 ## Source Of Truth Documents
 
