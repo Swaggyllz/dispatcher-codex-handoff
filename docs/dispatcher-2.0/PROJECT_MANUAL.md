@@ -153,6 +153,8 @@ Current milestone status:
   - New GitHub repository created: `https://github.com/Swaggyllz/dispatcher-codex-handoff`.
   - Local `v2` remote added for the new repository. Existing `origin` still points to `https://github.com/Swaggyllz/dispatcher.git`.
   - README and package metadata now lead with Dispatcher 2.0 / Codex Handoff Router and point quick start instructions at the new repository.
+  - `main` was pushed to `v2/main`; the local `main` branch now tracks `v2/main`.
+  - New repository check passed: public repo, default branch `main`, README renders with Dispatcher 2.0 heading.
 - Verification status: full release readiness verification passed again after the new repository documentation update on 2026-06-17.
 - Still pending for future phases: planned handoff from reliable quota snapshots, automatic background fallback execution, streaming continuation persistence, and richer primary-route reclaim workflows.
 
@@ -222,9 +224,9 @@ native Codex response status/headers
 
 Immediate:
 
-- Push only to `v2 main` when the current release docs update is committed.
 - Do not push to `origin main`.
-- After pushing, confirm the new repository default branch and README render correctly.
+- Decide whether to create a `v0.2.0` tag/release on the new `v2` repository.
+- If tagging, run the full verification matrix again immediately before pushing the tag to `v2`.
 
 Future planned phases:
 
