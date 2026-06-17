@@ -39,6 +39,8 @@
     "continueHandoff": "Continue with fallback",
     "continuingHandoff": "Continuing...",
     "fallbackContinuation": "Fallback continuation",
+    "fallbackProvider": "Fallback provider",
+    "fallbackModel": "Fallback model",
     "quotaSignal": "Quota signal",
     "observedHeadroom": "Observed headroom",
     "quotaSource": "Source",

@@ -291,6 +291,8 @@ export interface ProviderContinuationResponse {
   object?: string;
   status?: string;
   model?: string;
+  dispatcher_provider?: string | null;
+  dispatcher_model?: string | null;
   output?: ResponsesOutputItem[];
   error?: { message: string; type?: string } | null;
   usage?: {

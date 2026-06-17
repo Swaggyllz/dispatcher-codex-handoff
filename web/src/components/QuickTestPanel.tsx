@@ -352,6 +352,23 @@ function HandoffResult({
 
       {continuation.data && (
         <ResultSection title={t("dashboard.fallbackContinuation")}>
+          <div className="route-properties">
+            <RouteProperty
+              label={t("dashboard.fallbackProvider")}
+              value={
+                continuation.data.dispatcher_provider ??
+                t("dashboard.notAvailable")
+              }
+            />
+            <RouteProperty
+              label={t("dashboard.fallbackModel")}
+              value={
+                continuation.data.dispatcher_model ??
+                continuation.data.model ??
+                t("dashboard.notAvailable")
+              }
+            />
+          </div>
           <div className="assistant-response">
             {extractResponsesText(continuation.data) || t("dashboard.noData")}
           </div>

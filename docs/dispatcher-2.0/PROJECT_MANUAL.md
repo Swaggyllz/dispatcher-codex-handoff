@@ -102,6 +102,7 @@ Completed:
 - User-approved fallback continuation complete:
   - Dashboard handoff cards now include a user-clicked continuation action.
   - The action sends `continuation_prompt` to `POST /v1/responses` with `X-Dispatcher-Mode: provider-auto`.
+  - The continuation result displays the observed fallback provider/model from dispatcher response headers.
   - It is still explicit user approval, not automatic fallback execution.
 
 Current milestone status:

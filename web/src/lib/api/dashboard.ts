@@ -79,7 +79,7 @@ export function sendChatCompletion(
 export function sendHandoffContinuation(
   prompt: string,
 ): Promise<ProviderContinuationResponse> {
-  return request<ProviderContinuationResponse>(`${BASE}/responses`, {
+  return fetch(`${BASE}/responses`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -97,5 +97,19 @@ export function sendHandoffContinuation(
       stream: false,
       strategy: "auto",
     }),
+  }).then(async (resp) => {
+    const body = await resp.json().catch(() => null);
+    if (!resp.ok) {
+      throw new DashboardApiError(
+        body?.error?.message ?? `HTTP ${resp.status}: ${resp.statusText}`,
+        resp.status,
+        body?.error?.fields ?? [],
+      );
+    }
+    return {
+      ...(body as ProviderContinuationResponse),
+      dispatcher_provider: resp.headers.get("x-dispatcher-provider"),
+      dispatcher_model: resp.headers.get("x-dispatcher-model"),
+    };
   });
 }
