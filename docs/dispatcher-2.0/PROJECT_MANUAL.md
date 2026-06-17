@@ -33,6 +33,35 @@ Do not drift from these boundaries unless the user explicitly changes direction.
 - No hidden reasoning or context migration.
 - Fallback models are degraded execution workers, not Codex-native replacements.
 
+## Release Strategy
+
+Dispatcher 2.0 should be published as a new GitHub project, not pushed over the existing Dispatcher 1.0 repository.
+
+Recommended release shape:
+
+- Keep the original GitHub 1.0 repository unchanged.
+- Create a new GitHub repository for 2.0 when it is ready to publish.
+- Recommended repository names:
+  - `dispatcher-codex-handoff`
+  - `codex-handoff-router`
+  - `dispatcher-2`
+- Do not replace the existing `origin` remote unless the user explicitly asks.
+- Prefer adding a second remote for the 2.0 repository:
+
+```bash
+git remote add v2 git@github.com:<user-or-org>/dispatcher-codex-handoff.git
+git push -u v2 main
+```
+
+Before publishing 2.0, run a release readiness pass:
+
+- Confirm README and docs describe Dispatcher 2.0 / Codex Handoff Router, not the old 1.0 positioning.
+- Confirm environment variable examples are accurate.
+- Confirm screenshots or dashboard descriptions match the implemented 2.0 UI.
+- Confirm `docs/dispatcher-2.0/PROJECT_MANUAL.md` is current.
+- Confirm no local secrets, private URLs, or accidental test artifacts are included.
+- Prepare initial release notes for the new repository.
+
 ## Current Implementation Status
 
 Completed:
