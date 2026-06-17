@@ -99,11 +99,15 @@ Completed:
   - Quick Test now shows the latest observed Codex quota signal from `/v1/telemetry.latest_quota_event`.
   - It displays normalized headroom only when reliable upstream rate-limit header pairs were observed.
   - This is observational telemetry only; it does not trigger planned 10% handoff or automatic fallback execution.
+- User-approved fallback continuation complete:
+  - Dashboard handoff cards now include a user-clicked continuation action.
+  - The action sends `continuation_prompt` to `POST /v1/responses` with `X-Dispatcher-Mode: provider-auto`.
+  - It is still explicit user approval, not automatic fallback execution.
 
 Current milestone status:
 
 - First slice complete: native Codex quota/rate-limit emergency handoff package persistence and dashboard visibility.
-- Verification status: final full verification passed after formatting; continuation prompt copy action passed frontend verification; rate-limit header parsing passed focused backend tests; dashboard quota signal display passed frontend verification.
+- Verification status: final full verification passed after formatting; continuation prompt copy action passed frontend verification; rate-limit header parsing passed focused backend tests; dashboard quota signal display passed frontend verification; user-approved fallback continuation passed frontend verification.
 - Still pending for future phases: planned 10% handoff, automatic fallback execution through `provider-auto`, and primary-route recovery review.
 
 ## Source Of Truth Documents

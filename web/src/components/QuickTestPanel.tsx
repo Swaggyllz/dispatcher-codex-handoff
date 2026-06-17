@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowUp, Check, Copy, Loader2, Route } from "lucide-react";
+import { ArrowRight, ArrowUp, Check, Copy, Loader2, Route } from "lucide-react";
 import { StrategySelector } from "@/components/StrategySelector";
 import { useChatCompletion } from "@/hooks/useChatCompletion";
+import { useHandoffContinuation } from "@/hooks/useHandoffContinuation";
 import { extractErrorMessage } from "@/utils/errorUtils";
 import { formatLocalizedCost } from "@/utils/formatters";
 import {
@@ -15,6 +16,7 @@ import type {
   ChatCompletionResponse,
   CodexRouteTelemetry,
   HandoffPackageTelemetry,
+  ProviderContinuationResponse,
   QuotaEventTelemetry,
   RoutingStrategy,
 } from "@/types";
@@ -258,6 +260,7 @@ function HandoffResult({
   isNested?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
+  const continuation = useHandoffContinuation();
 
   const handleCopyPrompt = async () => {
     try {
@@ -267,6 +270,11 @@ function HandoffResult({
     } catch {
       setCopied(false);
     }
+  };
+
+  const handleContinue = () => {
+    if (continuation.isPending) return;
+    continuation.mutate({ prompt: handoff.continuation_prompt });
   };
 
   const content = (
@@ -321,7 +329,34 @@ function HandoffResult({
             ? t("dashboard.handoffPromptCopied")
             : t("dashboard.copyHandoffPrompt")}
         </button>
+        <button
+          type="button"
+          className="handoff-copy-button"
+          onClick={handleContinue}
+          disabled={continuation.isPending}
+        >
+          {continuation.isPending ? (
+            <Loader2 className="is-spinning" aria-hidden="true" />
+          ) : (
+            <ArrowRight aria-hidden="true" />
+          )}
+          {continuation.isPending
+            ? t("dashboard.continuingHandoff")
+            : t("dashboard.continueHandoff")}
+        </button>
       </div>
+
+      {continuation.error && (
+        <ErrorBlock message={extractErrorMessage(continuation.error)} />
+      )}
+
+      {continuation.data && (
+        <ResultSection title={t("dashboard.fallbackContinuation")}>
+          <div className="assistant-response">
+            {extractResponsesText(continuation.data) || t("dashboard.noData")}
+          </div>
+        </ResultSection>
+      )}
     </>
   );
 
@@ -342,6 +377,16 @@ function HandoffResult({
 
 function formatHandoffValue(value: string) {
   return value.replace(/_/g, " ");
+}
+
+function extractResponsesText(response: ProviderContinuationResponse) {
+  return (
+    response.output
+      ?.flatMap((item) => item.content ?? [])
+      .map((part) => part.text)
+      .filter((text): text is string => Boolean(text?.trim()))
+      .join("\n\n") ?? ""
+  );
 }
 
 function formatCodexReason(route: CodexRouteTelemetry, language: string) {

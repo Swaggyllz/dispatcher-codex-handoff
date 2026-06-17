@@ -285,6 +285,35 @@ export interface Usage {
   total_tokens: number;
 }
 
+// POST /v1/responses with X-Dispatcher-Mode: provider-auto
+export interface ProviderContinuationResponse {
+  id?: string;
+  object?: string;
+  status?: string;
+  model?: string;
+  output?: ResponsesOutputItem[];
+  error?: { message: string; type?: string } | null;
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+    total_tokens?: number;
+  };
+}
+
+export interface ResponsesOutputItem {
+  type: string;
+  role?: string;
+  status?: string;
+  content?: ResponsesContentPart[];
+  name?: string;
+  arguments?: string;
+}
+
+export interface ResponsesContentPart {
+  type: string;
+  text?: string;
+}
+
 export interface RoutingMetadata {
   provider: string;
   strategy: string;

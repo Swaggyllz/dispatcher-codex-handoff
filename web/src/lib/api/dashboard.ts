@@ -6,6 +6,7 @@ import type {
   RoutingPolicy,
   PolicySaveResponse,
   PolicyUpdate,
+  ProviderContinuationResponse,
   RoutingStrategy,
 } from "@/types";
 
@@ -71,6 +72,30 @@ export function sendChatCompletion(
       messages: [{ role: "user", content: prompt }],
       stream: false,
       strategy,
+    }),
+  });
+}
+
+export function sendHandoffContinuation(
+  prompt: string,
+): Promise<ProviderContinuationResponse> {
+  return request<ProviderContinuationResponse>(`${BASE}/responses`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Dispatcher-Mode": "provider-auto",
+    },
+    body: JSON.stringify({
+      model: "auto",
+      input: [
+        {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: prompt }],
+        },
+      ],
+      stream: false,
+      strategy: "auto",
     }),
   });
 }

@@ -1174,6 +1174,8 @@ button {
 
 .handoff-actions {
   display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   justify-content: flex-end;
   margin-top: 4px;
 }
@@ -1200,6 +1202,12 @@ button {
   border-color: hsl(var(--accent));
   color: hsl(var(--accent));
   transform: translateY(-1px);
+}
+
+.handoff-copy-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  transform: none;
 }
 
 .handoff-copy-button svg {
