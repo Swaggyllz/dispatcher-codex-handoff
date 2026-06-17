@@ -202,6 +202,17 @@ Use `X-Dispatcher-Mode = "auto"` to stay on the Codex-native lane. Dispatcher
 chooses model, reasoning effort, and speed without converting the request to a
 third-party provider protocol.
 
+### Codex handoff experiment
+
+Dispatcher 2.0 adds a Codex-first handoff flow for quota pressure. When the
+native Codex route observes reliable rate-limit headers, Dispatcher records
+quota telemetry; when it observes an emergency 429 or `retry-after`, it also
+creates a `dispatcher_handoff.v1` package and shows it in dashboard telemetry.
+The dashboard can copy the continuation prompt or, after an explicit user
+click, continue through `provider-auto` as degraded execution. This flow does
+not promise an exact 10% quota balance, emulate hosted Responses tools, or
+switch to a third-party model automatically.
+
 ### Multi-provider routing
 
 Use `provider-auto` to route Responses requests using provider credentials

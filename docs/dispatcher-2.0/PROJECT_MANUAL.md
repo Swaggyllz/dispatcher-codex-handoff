@@ -147,7 +147,10 @@ Current milestone status:
 
 - First slice complete: native Codex quota/rate-limit emergency handoff package persistence and dashboard visibility.
 - Second slice complete: user-approved provider-auto continuation from the emergency handoff card.
-- Verification status: final full verification passed after formatting; continuation prompt copy action passed frontend verification; rate-limit header parsing passed focused backend tests; dashboard quota signal display passed frontend verification; user-approved fallback continuation passed frontend verification; primary-route recovery review passed focused backend/frontend verification.
+- Release preparation started:
+  - `docs/releases/v0.2.0-codex-handoff.md` drafts initial Dispatcher 2.0 release notes and PR summary.
+  - README handoff documentation now describes emergency package visibility and explicit user-approved continuation.
+- Verification status: full release readiness verification passed again after the release documentation update on 2026-06-17.
 - Still pending for future phases: planned handoff from reliable quota snapshots, automatic background fallback execution, streaming continuation persistence, and richer primary-route reclaim workflows.
 
 ## Source Of Truth Documents
@@ -203,23 +206,29 @@ native Codex response status/headers
 `crates/dispatcher-server/src/telemetry.rs` contains:
 
 - `QuotaEventRecord`
+- `HandoffContinuationRecord`
 - `record_quota_event`
 - `record_handoff_package`
+- `record_handoff_continuation`
 - telemetry JSON fields:
   - `latest_quota_event`
   - `latest_handoff`
+  - `latest_handoff_continuation`
 
 ## Next Steps
 
 Immediate:
 
-- Prepare release notes or a PR summary if this milestone will be published.
+- Choose and create the new GitHub repository for Dispatcher 2.0.
+- Add a second `v2` remote for that repository; do not replace or push to `origin`.
+- Push only to `v2 main` when the new repository is ready.
 
 Future planned phases:
 
 - Planned handoff from reliable quota snapshots. Header-derived normalized headroom is now recorded, but no planned handoff trigger has been implemented.
-- User-approved fallback continuation through `provider-auto`. Do not automatically execute fallback models in the current slice.
-- Primary-route recovery review showing the handoff package, fallback model, changed files, commands run, and verification status.
+- Automatic background fallback execution.
+- Streaming continuation persistence.
+- Richer primary-route reclaim workflows.
 
 Final verification reference:
 
@@ -234,7 +243,7 @@ pnpm --dir web typecheck
 pnpm --dir web build
 ```
 
-Latest final verification result:
+Latest final verification result after release documentation updates on 2026-06-17:
 
 - `./scripts/check-open-source-readiness.sh`: passed.
 - `cargo fmt --all --check`: passed.

@@ -18,14 +18,16 @@ Included:
 - Native `auto` as primary route.
 - `provider-auto` as fallback route.
 - Emergency handoff on `429` or quota-like error.
-- Planned handoff only when reliable quota headers are captured.
-- Manual handoff for testing and user control.
+- Header-derived quota headroom as observational telemetry only.
+- User-approved continuation through `provider-auto`.
 - DeepSeek as first default domestic tool-capable fallback.
 - Handoff package persistence and dashboard visibility.
 
 Excluded:
 
 - Claude Code.
+- Planned 10% handoff in the current milestone.
+- Automatic background fallback execution.
 - Hosted Responses tool emulation.
 - Hidden reasoning migration.
 - Automatic quality equivalence claims.
@@ -62,7 +64,7 @@ Excluded:
 
 ### Phase 5: Fallback Execution
 
-- Route fallback continuation through `provider-auto`.
+- Route user-approved fallback continuation through `provider-auto`.
 - Start with DeepSeek for tool-capable tasks.
 - Apply execution guardrails to fallback prompt.
 - Add tests for function tool round trips.
@@ -94,11 +96,21 @@ Phase 2/3 first slice:
 - Emergency `dispatcher_handoff.v1` package persistence is implemented.
 - Dashboard telemetry shows the latest emergency handoff package.
 
+Additional completed slices:
+
+- Reliable Codex rate-limit header pairs are normalized into quota headroom telemetry.
+- Dashboard shows the latest observed quota signal without triggering planned handoff.
+- Dashboard can copy the handoff continuation prompt.
+- Dashboard supports explicit user-approved continuation through `provider-auto`.
+- Dispatcher records non-streaming fallback continuation results and exposes the latest continuation in telemetry.
+- Dashboard can copy a primary-route recovery review prompt for the latest handoff continuation.
+
 Still pending:
 
 - Planned 10% handoff from reliable quota snapshots.
-- Automatic fallback execution through `provider-auto`.
-- Primary-route recovery review workflow.
+- Automatic background fallback execution.
+- Streaming continuation persistence.
+- Richer primary-route reclaim workflows.
 
 ## Acceptance Criteria
 

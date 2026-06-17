@@ -195,10 +195,11 @@ curl http://localhost:8787/v1/chat/completions \
 
 ### Codex 交接模式实验
 
-Dispatcher 2.0 的第一阶段会在 Codex 原生路由遇到 429 或明确额度压力时记录
-`dispatcher_handoff.v1` 应急交接包。该交接包会出现在控制台 telemetry 中，帮助用户
-把当前任务交给备用模型继续。第一阶段只做可观测交接，不自动承诺 10% 精确余额、
-不模拟托管工具，也不自动切换到第三方模型。
+Dispatcher 2.0 会在 Codex 原生路由看到可靠限流 header 时记录 quota telemetry；
+遇到应急 429 或 `retry-after` 时，才会额外记录 `dispatcher_handoff.v1` 交接包。
+该交接包会出现在控制台 telemetry 中，用户可以复制续接提示词，也可以明确点击后通过
+`provider-auto` 让备用模型以降级执行模式继续。这个流程不自动承诺 10% 精确余额、
+不模拟托管工具，也不会自动切换到第三方模型。
 
 ### 跨供应商路由
 
