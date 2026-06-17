@@ -35,7 +35,7 @@ bytes = "1"
 http = "1"
 url = "2"
 dirs = "5"
-toml = "0.8"
+toml = "1.1"
 tokio-tungstenite = "0.21"
 async-trait = "0.1"
 
