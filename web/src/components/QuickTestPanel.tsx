@@ -15,14 +15,17 @@ import type {
   ChatCompletionResponse,
   CodexRouteTelemetry,
   HandoffPackageTelemetry,
+  QuotaEventTelemetry,
   RoutingStrategy,
 } from "@/types";
 
 export function QuickTestPanel({
   latestCodexRoute,
+  latestQuotaEvent,
   latestHandoff,
 }: {
   latestCodexRoute?: CodexRouteTelemetry | null;
+  latestQuotaEvent?: QuotaEventTelemetry | null;
   latestHandoff?: HandoffPackageTelemetry | null;
 }) {
   const { t, i18n } = useTranslation();
@@ -66,6 +69,7 @@ export function QuickTestPanel({
           ) : latestCodexRoute ? (
             <CodexResult
               route={latestCodexRoute}
+              latestQuotaEvent={latestQuotaEvent}
               latestHandoff={latestHandoff}
               t={t}
               language={i18n.language}
@@ -116,11 +120,13 @@ export function QuickTestPanel({
 
 function CodexResult({
   route,
+  latestQuotaEvent,
   latestHandoff,
   t,
   language,
 }: {
   route: CodexRouteTelemetry;
+  latestQuotaEvent?: QuotaEventTelemetry | null;
   latestHandoff?: HandoffPackageTelemetry | null;
   t: (key: string) => string;
   language: string;
@@ -192,11 +198,53 @@ function CodexResult({
           </p>
         )}
 
+        {latestQuotaEvent && (
+          <QuotaSignalResult quota={latestQuotaEvent} t={t} />
+        )}
+
         {latestHandoff && (
           <HandoffResult handoff={latestHandoff} t={t} isNested />
         )}
       </div>
     </div>
+  );
+}
+
+function QuotaSignalResult({
+  quota,
+  t,
+}: {
+  quota: QuotaEventTelemetry;
+  t: (key: string) => string;
+}) {
+  const observedHeadroom =
+    quota.normalized_headroom === null
+      ? t("dashboard.notAvailable")
+      : `${(quota.normalized_headroom * 100).toFixed(1)}%`;
+
+  return (
+    <ResultSection title={t("dashboard.quotaSignal")}>
+      <div className="route-properties">
+        <RouteProperty
+          label={t("dashboard.observedHeadroom")}
+          value={observedHeadroom}
+        />
+        <RouteProperty
+          label={t("dashboard.quotaSource")}
+          value={formatHandoffValue(quota.source)}
+        />
+        <RouteProperty
+          label={t("dashboard.quotaModel")}
+          value={`${quota.provider_id} / ${quota.model_id}`}
+        />
+        {quota.retry_after_secs !== null && (
+          <RouteProperty
+            label={t("dashboard.retryAfter")}
+            value={`${quota.retry_after_secs}s`}
+          />
+        )}
+      </div>
+    </ResultSection>
   );
 }
 

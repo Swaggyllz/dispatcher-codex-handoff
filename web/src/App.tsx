@@ -76,6 +76,7 @@ export default function App() {
             <StatsPanel telemetry={telemetry} isLoading={telemetryLoading} />
             <QuickTestPanel
               latestCodexRoute={telemetry?.latest_codex_route}
+              latestQuotaEvent={telemetry?.latest_quota_event}
               latestHandoff={telemetry?.latest_handoff}
             />
             <PolicyPanel policy={policy} isLoading={policyLoading} />

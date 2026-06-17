@@ -95,11 +95,15 @@ Completed:
   - It records the minimum normalized headroom when both `limit` and `remaining` are present.
   - Native Codex responses with header-derived headroom record a quota event even when they are not emergency handoffs.
   - This does not trigger planned 10% handoff and does not switch providers automatically.
+- Dashboard quota signal display complete:
+  - Quick Test now shows the latest observed Codex quota signal from `/v1/telemetry.latest_quota_event`.
+  - It displays normalized headroom only when reliable upstream rate-limit header pairs were observed.
+  - This is observational telemetry only; it does not trigger planned 10% handoff or automatic fallback execution.
 
 Current milestone status:
 
 - First slice complete: native Codex quota/rate-limit emergency handoff package persistence and dashboard visibility.
-- Verification status: final full verification passed after formatting; continuation prompt copy action passed frontend verification; rate-limit header parsing passed focused backend tests.
+- Verification status: final full verification passed after formatting; continuation prompt copy action passed frontend verification; rate-limit header parsing passed focused backend tests; dashboard quota signal display passed frontend verification.
 - Still pending for future phases: planned 10% handoff, automatic fallback execution through `provider-auto`, and primary-route recovery review.
 
 ## Source Of Truth Documents
