@@ -55,7 +55,7 @@ preferred_model_keywords = ["flash"]
 
 #[derive(Parser)]
 #[command(name = "dispatch")]
-#[command(about = "Dispatcher — LLM Intelligent Routing Engine", long_about = None)]
+#[command(about = "Dispatcher — Codex Handoff Router", long_about = None)]
 #[command(version)]
 struct Cli {
     #[command(subcommand)]

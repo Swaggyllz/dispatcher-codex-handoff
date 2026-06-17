@@ -142,6 +142,13 @@ Completed:
   - Dashboard shows the saved fallback continuation only when it matches the current handoff package.
   - Dashboard can copy a primary-route review prompt. This does not automatically switch back to Codex.
   - Current MVP records non-streaming provider-auto continuation results; streaming continuation persistence remains a future hardening task.
+- App-like simple dashboard complete:
+  - Dashboard now opens in a simple Codex handoff overview by default and keeps the previous detailed dashboard behind Professional mode.
+  - The simple view shows latest handoff state, explicit fallback continuation, copy handoff prompt, latest model, quota signal, and observed provider health.
+  - Provider health wording now distinguishes "awaiting health samples" from local service health so unknown providers are not presented as healthy.
+  - Web metadata now uses Dispatcher 2.0 / Codex Handoff Router and includes the app icon favicon in the Vite build output.
+- Release version alignment complete:
+  - Workspace, root package, web package, Cargo.lock, CLI help, and CLI crate metadata now use `0.2.0` / Codex Handoff Router release positioning.
 
 Current milestone status:
 
@@ -155,7 +162,7 @@ Current milestone status:
   - README and package metadata now lead with Dispatcher 2.0 / Codex Handoff Router and point quick start instructions at the new repository.
   - `main` was pushed to `v2/main`; the local `main` branch now tracks `v2/main`.
   - New repository check passed: public repo, default branch `main`, README renders with Dispatcher 2.0 heading.
-- Verification status: full release readiness verification passed again after the new repository documentation update on 2026-06-17.
+- Verification status: full release readiness verification passed again after app-like dashboard, release metadata, and version alignment updates on 2026-06-17.
 - Still pending for future phases: planned handoff from reliable quota snapshots, automatic background fallback execution, streaming continuation persistence, and richer primary-route reclaim workflows.
 
 ## Source Of Truth Documents
@@ -248,7 +255,7 @@ pnpm --dir web typecheck
 pnpm --dir web build
 ```
 
-Latest final verification result after release documentation updates on 2026-06-17:
+Latest final verification result after app-like dashboard and v0.2.0 release alignment updates on 2026-06-17:
 
 - `./scripts/check-open-source-readiness.sh`: passed.
 - `cargo fmt --all --check`: passed.

@@ -96,7 +96,7 @@ function CostPeriod({
     <div className="cost-period">
       <span>{label}</span>
       <strong className={isLoading ? "is-loading" : ""}>
-        {isLoading ? "..." : value}
+        {isLoading ? "…" : value}
       </strong>
     </div>
   );
@@ -121,7 +121,7 @@ function CostBreakdownList({
     <div className="cost-breakdown">
       <h3>{title}</h3>
       {isLoading ? (
-        <div className="cost-breakdown-empty">...</div>
+        <div className="cost-breakdown-empty">…</div>
       ) : rows.length === 0 ? (
         <div className="cost-breakdown-empty">—</div>
       ) : (

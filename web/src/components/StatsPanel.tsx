@@ -59,7 +59,7 @@ export function StatsPanel({ telemetry, isLoading }: StatsPanelProps) {
               isLoading ? "is-loading" : ""
             }`}
           >
-            {isLoading ? "..." : metric.value}
+            {isLoading ? "…" : metric.value}
           </strong>
           <span className="metric-note">{metric.note}</span>
         </div>
