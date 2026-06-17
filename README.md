@@ -1,58 +1,49 @@
-# Dispatcher
+# Dispatcher 2.0: Codex Handoff Router
 
-Local intelligent model routing for AI coding agents.
+Codex-first handoff routing for quota pressure and rate-limit recovery.
 
 [简体中文](README.zh-CN.md) | English
 
-> **Alpha:** `v0.1.0-alpha.1` is ready for local evaluation. Configuration
-> formats and provider metadata may still change before `v1.0`.
+> **Alpha:** Dispatcher 2.0 is a release-candidate continuation of Dispatcher,
+> prepared as a new GitHub project. Configuration formats and provider metadata
+> may still change before a stable release.
 
 Dispatcher runs an OpenAI-compatible service on your machine. It analyzes each
 request, selects a provider and model using quality, cost, latency, capability,
-and recent health signals, and records an explainable routing decision.
+and recent health signals, and records an explainable routing decision. The 2.0
+line adds Codex-native emergency handoff packages, quota telemetry, and
+user-approved fallback continuation through `provider-auto`.
 
 ## Why Dispatcher?
 
-- One local endpoint for Claude Code, Codex, and compatible API clients
-- Automatic model selection across `simple`, `medium`, `reasoning`, and `complex` tasks
-- `auto`, `save`, and `fast` routing strategies
-- Provider health scoring, circuit breaking, timeout protection, and fallback
-- Tool, vision, streaming, and context-window capability filtering
-- Local dashboard for routing explanations, usage, latency, and cost
-- Built-in demo provider, so you can try the complete flow without an API key
+- Codex-native `auto` routing that preserves the Responses request shape
+- Emergency `dispatcher_handoff.v1` packages for 429 and quota-pressure events
+- Observable quota telemetry without claiming an exact account balance
+- User-approved `provider-auto` continuation as degraded fallback execution
+- Local dashboard for quota signals, handoffs, routing explanations, usage, and cost
+- Built-in demo provider, so you can test the routing surface without an API key
 
 ## Quick Start
 
-### 1. Download
+### 1. Get the source
 
-Download the archive for your system from
-[v0.1.0-alpha.1](https://github.com/Swaggyllz/dispatcher/releases/tag/v0.1.0-alpha.1):
+```bash
+git clone https://github.com/Swaggyllz/dispatcher-codex-handoff.git
+cd dispatcher-codex-handoff
+```
 
-| Platform            | Package                           |
-| ------------------- | --------------------------------- |
-| macOS Apple Silicon | `dispatcher-macos-aarch64.tar.gz` |
-| Linux x86_64        | `dispatcher-linux-x86_64.tar.gz`  |
-| Windows x86_64      | `dispatcher-windows-x86_64.zip`   |
-
-The binaries are currently unsigned. Your operating system may ask you to
-confirm that you trust the downloaded file.
+Release archives will be prepared from this new 2.0 repository. Until then,
+build from source.
 
 ### 2. Start Dispatcher
 
-macOS or Linux:
-
 ```bash
-tar -xzf dispatcher-*.tar.gz
-./dispatch serve --web-dir ./web/dist
+pnpm --dir web install --frozen-lockfile
+pnpm --dir web build
+cargo run --release -- serve --web-dir ./web/dist
 ```
 
-Windows PowerShell:
-
-```powershell
-Expand-Archive .\dispatcher-windows-x86_64.zip -DestinationPath .\dispatcher
-cd .\dispatcher
-.\dispatch.exe serve --web-dir .\web\dist
-```
+Requirements: Rust 1.95 or newer, Node.js 22, and pnpm 10.
 
 ### 3. Open the dashboard
 
@@ -69,13 +60,33 @@ Set one or more provider keys before starting Dispatcher:
 ```bash
 export OPENAI_API_KEY="your-key"
 export ANTHROPIC_API_KEY="your-key"
-./dispatch serve --web-dir ./web/dist
+cargo run --release -- serve --web-dir ./web/dist
 ```
 
 Never commit real keys. Dispatcher reads credentials from the service process
 environment and does not load `.env` automatically.
 
 ## Connect Your Coding Agent
+
+### Codex
+
+Add this profile to `~/.codex/config.toml`:
+
+```toml
+model = "gpt-5.5"
+model_provider = "dispatcher"
+
+[model_providers.dispatcher]
+name = "Dispatcher"
+base_url = "http://localhost:8787/v1"
+wire_api = "responses"
+requires_openai_auth = true
+http_headers = { "X-Dispatcher-Mode" = "auto" }
+```
+
+This keeps requests on the Codex-native model lane while Dispatcher selects the
+model, reasoning effort, and speed. See
+[Codex routing modes](#codex-routing-modes) for multi-provider routing.
 
 ### Claude Code
 
@@ -109,26 +120,6 @@ testing is still in progress during the alpha.
 See Anthropic's
 [LLM gateway documentation](https://docs.anthropic.com/en/docs/claude-code/llm-gateway)
 for the upstream Claude Code gateway model.
-
-### Codex
-
-Add this profile to `~/.codex/config.toml`:
-
-```toml
-model = "gpt-5.5"
-model_provider = "dispatcher"
-
-[model_providers.dispatcher]
-name = "Dispatcher"
-base_url = "http://localhost:8787/v1"
-wire_api = "responses"
-requires_openai_auth = true
-http_headers = { "X-Dispatcher-Mode" = "auto" }
-```
-
-This keeps requests on the Codex-native model lane while Dispatcher selects the
-model, reasoning effort, and speed. See
-[Codex routing modes](#codex-routing-modes) for multi-provider routing.
 
 ## Supported Providers
 

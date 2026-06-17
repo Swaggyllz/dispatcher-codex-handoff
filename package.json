@@ -1,7 +1,7 @@
 {
   "name": "dispatcher",
   "version": "0.1.0",
-  "description": "Dispatcher — LLM Intelligent Routing Engine",
+  "description": "Dispatcher 2.0 — Codex Handoff Router",
   "type": "module",
   "scripts": {
     "dev": "cd web && pnpm dev",
