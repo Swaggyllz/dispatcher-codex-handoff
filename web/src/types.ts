@@ -65,6 +65,7 @@ export interface TelemetryStats {
   latest_codex_route: CodexRouteTelemetry | null;
   latest_quota_event: QuotaEventTelemetry | null;
   latest_handoff: HandoffPackageTelemetry | null;
+  latest_handoff_continuation: HandoffContinuationTelemetry | null;
 }
 
 export interface CostSummary {
@@ -162,6 +163,19 @@ export interface HandoffRoutingContextTelemetry {
   reasoning_effort: "low" | "medium" | "high" | "xhigh";
   speed: "standard" | "priority";
   dispatcher_mode: string;
+}
+
+export interface HandoffContinuationTelemetry {
+  timestamp: string;
+  package_id: string;
+  provider_id: string;
+  model_id: string;
+  success: boolean;
+  status_code: number | null;
+  latency_ms: number;
+  response_text: string | null;
+  error_message: string | null;
+  review_prompt: string;
 }
 
 export interface ProviderStat {

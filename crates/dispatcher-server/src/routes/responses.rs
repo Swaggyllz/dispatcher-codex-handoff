@@ -24,7 +24,8 @@ use crate::routes::responses_compat::{
 };
 use crate::{
     chat_completion_stream_with_timeout, chat_completion_with_timeout, provider_attempt_timeout,
-    telemetry::CodexTelemetryRecord, AppState,
+    telemetry::{CodexTelemetryRecord, HandoffContinuationRecord},
+    AppState,
 };
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -690,6 +691,16 @@ fn provider_strategy(request: &ResponsesRequest) -> RoutingStrategy {
     }
 }
 
+fn handoff_package_id(request: &ResponsesRequest) -> Option<String> {
+    request
+        .extra
+        .get("handoff_package_id")
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
+}
+
 async fn provider_responses(
     state: Arc<AppState>,
     request: ResponsesRequest,
@@ -733,10 +744,11 @@ async fn provider_responses(
         request.stream,
     );
 
+    let handoff_package_id = handoff_package_id(&request);
     if request.stream {
         provider_stream_responses(state, model_request, decision).await
     } else {
-        provider_non_stream_responses(state, model_request, decision).await
+        provider_non_stream_responses(state, model_request, decision, handoff_package_id).await
     }
 }
 
@@ -761,7 +773,9 @@ async fn provider_non_stream_responses(
     state: Arc<AppState>,
     request: ModelRequest,
     decision: RoutingDecision,
+    handoff_package_id: Option<String>,
 ) -> axum::response::Response {
+    let started_at = Instant::now();
     let mut fallback_chain = Vec::new();
     for mut attempt in provider_attempts(&state, &decision) {
         attempt.fallback_chain = fallback_chain.clone();
@@ -787,6 +801,19 @@ async fn provider_non_stream_responses(
                     .record_success(&attempt.provider_id)
                     .await;
                 record_provider_telemetry(&state, &attempt, &response, true, None).await;
+                record_handoff_continuation(
+                    &state,
+                    ProviderHandoffContinuation {
+                        package_id: handoff_package_id.as_deref(),
+                        decision: &attempt,
+                        success: true,
+                        status_code: Some(StatusCode::OK),
+                        latency_ms: response.latency_ms,
+                        response_text: provider_response_text(&response),
+                        error_message: None,
+                    },
+                )
+                .await;
                 return provider_json_response(
                     StatusCode::OK,
                     chat_completion_to_response(&response),
@@ -815,6 +842,20 @@ async fn provider_non_stream_responses(
             }
         }
     }
+
+    record_handoff_continuation(
+        &state,
+        ProviderHandoffContinuation {
+            package_id: handoff_package_id.as_deref(),
+            decision: &decision,
+            success: false,
+            status_code: Some(StatusCode::BAD_GATEWAY),
+            latency_ms: started_at.elapsed().as_millis() as u64,
+            response_text: None,
+            error_message: Some("All compatible providers failed".into()),
+        },
+    )
+    .await;
 
     (
         StatusCode::BAD_GATEWAY,
@@ -1056,6 +1097,53 @@ fn failed_provider_response(decision: &RoutingDecision) -> ChatCompletionRespons
         finish_reason: None,
         latency_ms: 0,
     }
+}
+
+fn provider_response_text(response: &ChatCompletionResponse) -> Option<String> {
+    let text = response
+        .choices
+        .iter()
+        .map(|choice| choice.message.content.trim())
+        .filter(|content| !content.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n\n");
+
+    (!text.is_empty()).then_some(text)
+}
+
+struct ProviderHandoffContinuation<'a> {
+    package_id: Option<&'a str>,
+    decision: &'a RoutingDecision,
+    success: bool,
+    status_code: Option<StatusCode>,
+    latency_ms: u64,
+    response_text: Option<String>,
+    error_message: Option<String>,
+}
+
+async fn record_handoff_continuation(
+    state: &Arc<AppState>,
+    continuation: ProviderHandoffContinuation<'_>,
+) {
+    let Some(package_id) = continuation.package_id else {
+        return;
+    };
+
+    let _ = state
+        .telemetry
+        .record_handoff_continuation(&HandoffContinuationRecord {
+            id: uuid::Uuid::new_v4().to_string(),
+            timestamp: chrono::Utc::now(),
+            package_id: package_id.into(),
+            provider_id: continuation.decision.provider_id.clone(),
+            model_id: continuation.decision.model_id.clone(),
+            success: continuation.success,
+            status_code: continuation.status_code.map(|status| status.as_u16()),
+            latency_ms: continuation.latency_ms,
+            response_text: continuation.response_text,
+            error_message: continuation.error_message,
+        })
+        .await;
 }
 
 async fn record_provider_telemetry(
@@ -1695,6 +1783,26 @@ mod tests {
     }
 
     #[test]
+    fn handoff_package_id_extracts_non_empty_string_from_extra() {
+        let mut request = route_request("continue from handoff");
+        request
+            .extra
+            .insert("handoff_package_id".into(), serde_json::json!("pkg_123"));
+
+        assert_eq!(handoff_package_id(&request), Some("pkg_123".into()));
+
+        request
+            .extra
+            .insert("handoff_package_id".into(), serde_json::json!("   "));
+        assert_eq!(handoff_package_id(&request), None);
+
+        request
+            .extra
+            .insert("handoff_package_id".into(), serde_json::json!(123));
+        assert_eq!(handoff_package_id(&request), None);
+    }
+
+    #[test]
     fn codex_quota_signal_detects_429() {
         let mut headers = HeaderMap::new();
         headers.insert("retry-after", "60".parse().unwrap());
@@ -1776,6 +1884,54 @@ mod tests {
             .as_str()
             .unwrap()
             .contains("hello provider mode"));
+
+        drop(state);
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[tokio::test]
+    async fn provider_auto_non_stream_records_handoff_continuation_when_tagged() {
+        let (state, path) = provider_test_state().await;
+        let mut request = route_request("hello handoff continuation");
+        request.stream = false;
+        request
+            .extra
+            .insert("handoff_package_id".into(), serde_json::json!("pkg_123"));
+        let model_request = responses_to_model_request(&request);
+
+        let response = provider_responses(state.clone(), request, model_request).await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let stats = state.telemetry.get_stats().await.unwrap();
+        let continuation = &stats["latest_handoff_continuation"];
+        assert_eq!(continuation["package_id"], "pkg_123");
+        assert_eq!(continuation["provider_id"], "demo");
+        assert_eq!(continuation["success"], true);
+        assert!(continuation["response_text"]
+            .as_str()
+            .unwrap()
+            .contains("hello handoff continuation"));
+        assert!(continuation["review_prompt"]
+            .as_str()
+            .unwrap()
+            .contains("degraded fallback continuation"));
+
+        drop(state);
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[tokio::test]
+    async fn provider_auto_without_handoff_package_does_not_record_continuation() {
+        let (state, path) = provider_test_state().await;
+        let mut request = route_request("ordinary provider mode");
+        request.stream = false;
+        let model_request = responses_to_model_request(&request);
+
+        let response = provider_responses(state.clone(), request, model_request).await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let stats = state.telemetry.get_stats().await.unwrap();
+        assert!(stats["latest_handoff_continuation"].is_null());
 
         drop(state);
         std::fs::remove_file(path).unwrap();

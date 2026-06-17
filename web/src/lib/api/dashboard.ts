@@ -78,6 +78,7 @@ export function sendChatCompletion(
 
 export function sendHandoffContinuation(
   prompt: string,
+  packageId: string,
 ): Promise<ProviderContinuationResponse> {
   return fetch(`${BASE}/responses`, {
     method: "POST",
@@ -96,6 +97,7 @@ export function sendHandoffContinuation(
       ],
       stream: false,
       strategy: "auto",
+      handoff_package_id: packageId,
     }),
   }).then(async (resp) => {
     const body = await resp.json().catch(() => null);

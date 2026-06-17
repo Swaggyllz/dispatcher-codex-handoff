@@ -107,13 +107,19 @@ Completed:
   - The action sends `continuation_prompt` to `POST /v1/responses` with `X-Dispatcher-Mode: provider-auto`.
   - The continuation result displays the observed fallback provider/model from dispatcher response headers.
   - It is still explicit user approval, not automatic fallback execution.
+- Primary-route recovery review complete:
+  - Provider-auto handoff continuations are tagged with `handoff_package_id`.
+  - Dispatcher persists the latest fallback continuation and exposes it as `/v1/telemetry.latest_handoff_continuation`.
+  - Dashboard shows the saved fallback continuation only when it matches the current handoff package.
+  - Dashboard can copy a primary-route review prompt. This does not automatically switch back to Codex.
+  - Current MVP records non-streaming provider-auto continuation results; streaming continuation persistence remains a future hardening task.
 
 Current milestone status:
 
 - First slice complete: native Codex quota/rate-limit emergency handoff package persistence and dashboard visibility.
 - Second slice complete: user-approved provider-auto continuation from the emergency handoff card.
-- Verification status: final full verification passed after formatting; continuation prompt copy action passed frontend verification; rate-limit header parsing passed focused backend tests; dashboard quota signal display passed frontend verification; user-approved fallback continuation passed frontend verification.
-- Still pending for future phases: planned handoff from reliable quota snapshots, automatic background fallback execution, and primary-route recovery review.
+- Verification status: final full verification passed after formatting; continuation prompt copy action passed frontend verification; rate-limit header parsing passed focused backend tests; dashboard quota signal display passed frontend verification; user-approved fallback continuation passed frontend verification; primary-route recovery review passed focused backend/frontend verification.
+- Still pending for future phases: planned handoff from reliable quota snapshots, automatic background fallback execution, streaming continuation persistence, and richer primary-route reclaim workflows.
 
 ## Source Of Truth Documents
 

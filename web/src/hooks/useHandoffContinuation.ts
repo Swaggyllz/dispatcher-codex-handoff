@@ -5,8 +5,13 @@ import type { ProviderContinuationResponse } from "@/types";
 export function useHandoffContinuation() {
   const queryClient = useQueryClient();
 
-  return useMutation<ProviderContinuationResponse, Error, { prompt: string }>({
-    mutationFn: ({ prompt }) => sendHandoffContinuation(prompt),
+  return useMutation<
+    ProviderContinuationResponse,
+    Error,
+    { prompt: string; packageId: string }
+  >({
+    mutationFn: ({ prompt, packageId }) =>
+      sendHandoffContinuation(prompt, packageId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["telemetry"] });
     },

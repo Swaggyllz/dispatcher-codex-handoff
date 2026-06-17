@@ -15,6 +15,7 @@ import {
 import type {
   ChatCompletionResponse,
   CodexRouteTelemetry,
+  HandoffContinuationTelemetry,
   HandoffPackageTelemetry,
   ProviderContinuationResponse,
   QuotaEventTelemetry,
@@ -25,10 +26,12 @@ export function QuickTestPanel({
   latestCodexRoute,
   latestQuotaEvent,
   latestHandoff,
+  latestHandoffContinuation,
 }: {
   latestCodexRoute?: CodexRouteTelemetry | null;
   latestQuotaEvent?: QuotaEventTelemetry | null;
   latestHandoff?: HandoffPackageTelemetry | null;
+  latestHandoffContinuation?: HandoffContinuationTelemetry | null;
 }) {
   const { t, i18n } = useTranslation();
   const [prompt, setPrompt] = useState("");
@@ -73,11 +76,16 @@ export function QuickTestPanel({
               route={latestCodexRoute}
               latestQuotaEvent={latestQuotaEvent}
               latestHandoff={latestHandoff}
+              latestHandoffContinuation={latestHandoffContinuation}
               t={t}
               language={i18n.language}
             />
           ) : latestHandoff ? (
-            <HandoffResult handoff={latestHandoff} t={t} />
+            <HandoffResult
+              handoff={latestHandoff}
+              latestHandoffContinuation={latestHandoffContinuation}
+              t={t}
+            />
           ) : (
             <EmptyDecision t={t} />
           )}
@@ -124,12 +132,14 @@ function CodexResult({
   route,
   latestQuotaEvent,
   latestHandoff,
+  latestHandoffContinuation,
   t,
   language,
 }: {
   route: CodexRouteTelemetry;
   latestQuotaEvent?: QuotaEventTelemetry | null;
   latestHandoff?: HandoffPackageTelemetry | null;
+  latestHandoffContinuation?: HandoffContinuationTelemetry | null;
   t: (key: string) => string;
   language: string;
 }) {
@@ -205,7 +215,12 @@ function CodexResult({
         )}
 
         {latestHandoff && (
-          <HandoffResult handoff={latestHandoff} t={t} isNested />
+          <HandoffResult
+            handoff={latestHandoff}
+            latestHandoffContinuation={latestHandoffContinuation}
+            t={t}
+            isNested
+          />
         )}
       </div>
     </div>
@@ -252,15 +267,22 @@ function QuotaSignalResult({
 
 function HandoffResult({
   handoff,
+  latestHandoffContinuation,
   t,
   isNested = false,
 }: {
   handoff: HandoffPackageTelemetry;
+  latestHandoffContinuation?: HandoffContinuationTelemetry | null;
   t: (key: string) => string;
   isNested?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
+  const [reviewCopied, setReviewCopied] = useState(false);
   const continuation = useHandoffContinuation();
+  const persistedContinuation =
+    latestHandoffContinuation?.package_id === handoff.package_id
+      ? latestHandoffContinuation
+      : null;
 
   const handleCopyPrompt = async () => {
     try {
@@ -274,7 +296,21 @@ function HandoffResult({
 
   const handleContinue = () => {
     if (continuation.isPending) return;
-    continuation.mutate({ prompt: handoff.continuation_prompt });
+    continuation.mutate({
+      prompt: handoff.continuation_prompt,
+      packageId: handoff.package_id,
+    });
+  };
+
+  const handleCopyReviewPrompt = async () => {
+    if (!persistedContinuation?.review_prompt) return;
+    try {
+      await navigator.clipboard.writeText(persistedContinuation.review_prompt);
+      setReviewCopied(true);
+      window.setTimeout(() => setReviewCopied(false), 1800);
+    } catch {
+      setReviewCopied(false);
+    }
   };
 
   const content = (
@@ -374,6 +410,15 @@ function HandoffResult({
           </div>
         </ResultSection>
       )}
+
+      {persistedContinuation && (
+        <PersistedContinuationResult
+          continuation={persistedContinuation}
+          onCopyReviewPrompt={handleCopyReviewPrompt}
+          reviewCopied={reviewCopied}
+          t={t}
+        />
+      )}
     </>
   );
 
@@ -394,6 +439,76 @@ function HandoffResult({
 
 function formatHandoffValue(value: string) {
   return value.replace(/_/g, " ");
+}
+
+function PersistedContinuationResult({
+  continuation,
+  onCopyReviewPrompt,
+  reviewCopied,
+  t,
+}: {
+  continuation: HandoffContinuationTelemetry;
+  onCopyReviewPrompt: () => void;
+  reviewCopied: boolean;
+  t: (key: string) => string;
+}) {
+  return (
+    <ResultSection title={t("dashboard.savedFallbackContinuation")}>
+      <div className="route-properties">
+        <RouteProperty
+          label={t("dashboard.fallbackProvider")}
+          value={continuation.provider_id}
+        />
+        <RouteProperty
+          label={t("dashboard.fallbackModel")}
+          value={continuation.model_id}
+        />
+        <RouteProperty
+          label={t("dashboard.handoffStatus")}
+          value={
+            continuation.success
+              ? t("dashboard.routeSucceeded")
+              : t("dashboard.routeFailed")
+          }
+        />
+        <RouteProperty
+          label={t("dashboard.observedLatency")}
+          value={`${continuation.latency_ms}ms`}
+        />
+      </div>
+
+      <p className="review-status">
+        {continuation.success
+          ? t("dashboard.primaryReviewReady")
+          : t("dashboard.fallbackContinuationFailed")}
+      </p>
+
+      <div className="assistant-response">
+        {continuation.success
+          ? continuation.response_text || t("dashboard.noData")
+          : continuation.error_message || t("dashboard.noData")}
+      </div>
+
+      {continuation.success && (
+        <div className="handoff-actions">
+          <button
+            type="button"
+            className="handoff-copy-button"
+            onClick={onCopyReviewPrompt}
+          >
+            {reviewCopied ? (
+              <Check aria-hidden="true" />
+            ) : (
+              <Copy aria-hidden="true" />
+            )}
+            {reviewCopied
+              ? t("dashboard.reviewPromptCopied")
+              : t("dashboard.copyReviewPrompt")}
+          </button>
+        </div>
+      )}
+    </ResultSection>
+  );
 }
 
 function extractResponsesText(response: ProviderContinuationResponse) {

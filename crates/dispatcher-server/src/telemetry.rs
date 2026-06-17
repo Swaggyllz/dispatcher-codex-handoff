@@ -35,6 +35,20 @@ pub struct QuotaEventRecord {
     pub source: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct HandoffContinuationRecord {
+    pub id: String,
+    pub timestamp: chrono::DateTime<chrono::Utc>,
+    pub package_id: String,
+    pub provider_id: String,
+    pub model_id: String,
+    pub success: bool,
+    pub status_code: Option<u16>,
+    pub latency_ms: u64,
+    pub response_text: Option<String>,
+    pub error_message: Option<String>,
+}
+
 pub struct TelemetryStore {
     db: Arc<Mutex<Connection>>,
 }
@@ -96,12 +110,27 @@ impl TelemetryStore {
                 package_json TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS handoff_continuations (
+                id TEXT PRIMARY KEY,
+                timestamp TEXT NOT NULL,
+                package_id TEXT NOT NULL,
+                provider_id TEXT NOT NULL,
+                model_id TEXT NOT NULL,
+                success INTEGER NOT NULL DEFAULT 0,
+                status_code INTEGER,
+                latency_ms INTEGER NOT NULL DEFAULT 0,
+                response_text TEXT,
+                error_message TEXT
+            );
+
             CREATE INDEX IF NOT EXISTS idx_telemetry_timestamp ON telemetry(timestamp);
             CREATE INDEX IF NOT EXISTS idx_telemetry_provider ON telemetry(provider_id);
             CREATE INDEX IF NOT EXISTS idx_telemetry_success ON telemetry(success);
             CREATE INDEX IF NOT EXISTS idx_codex_routes_timestamp ON codex_routes(timestamp);
             CREATE INDEX IF NOT EXISTS idx_quota_events_timestamp ON quota_events(timestamp);
-            CREATE INDEX IF NOT EXISTS idx_handoff_packages_created_at ON handoff_packages(created_at);",
+            CREATE INDEX IF NOT EXISTS idx_handoff_packages_created_at ON handoff_packages(created_at);
+            CREATE INDEX IF NOT EXISTS idx_handoff_continuations_timestamp ON handoff_continuations(timestamp);
+            CREATE INDEX IF NOT EXISTS idx_handoff_continuations_package ON handoff_continuations(package_id);",
         )?;
         ensure_telemetry_agent_tier_column(&conn)?;
 
@@ -200,6 +229,32 @@ impl TelemetryStore {
                 package.confidence,
                 package.latest_user_request,
                 serde_json::to_string(package)?,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub async fn record_handoff_continuation(
+        &self,
+        record: &HandoffContinuationRecord,
+    ) -> anyhow::Result<()> {
+        let db = self.db.lock().await;
+        db.execute(
+            "INSERT INTO handoff_continuations (
+                id, timestamp, package_id, provider_id, model_id, success, status_code,
+                latency_ms, response_text, error_message
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            params![
+                record.id,
+                record.timestamp.to_rfc3339(),
+                record.package_id,
+                record.provider_id,
+                record.model_id,
+                record.success as i32,
+                record.status_code,
+                record.latency_ms,
+                record.response_text,
+                record.error_message,
             ],
         )?;
         Ok(())
@@ -397,6 +452,60 @@ impl TelemetryStore {
             .optional()?
             .and_then(|json| serde_json::from_str::<serde_json::Value>(&json).ok());
 
+        let latest_handoff_continuation = db
+            .query_row(
+                "SELECT handoff_continuations.timestamp,
+                        handoff_continuations.package_id,
+                        handoff_continuations.provider_id,
+                        handoff_continuations.model_id,
+                        handoff_continuations.success,
+                        handoff_continuations.status_code,
+                        handoff_continuations.latency_ms,
+                        handoff_continuations.response_text,
+                        handoff_continuations.error_message,
+                        handoff_packages.package_json
+                 FROM handoff_continuations
+                 LEFT JOIN handoff_packages ON handoff_packages.package_id = handoff_continuations.package_id
+                 ORDER BY handoff_continuations.timestamp DESC, handoff_continuations.rowid DESC
+                 LIMIT 1",
+                [],
+                |row| {
+                    let package_id = row.get::<_, String>(1)?;
+                    let provider_id = row.get::<_, String>(2)?;
+                    let model_id = row.get::<_, String>(3)?;
+                    let success = row.get::<_, bool>(4)?;
+                    let status_code = row.get::<_, Option<i64>>(5)?;
+                    let latency_ms = row.get::<_, i64>(6)?;
+                    let response_text = row.get::<_, Option<String>>(7)?;
+                    let error_message = row.get::<_, Option<String>>(8)?;
+                    let package_json = row.get::<_, Option<String>>(9)?;
+                    let review_prompt = build_handoff_review_prompt(HandoffReviewPromptInput {
+                        package_json: package_json.as_deref(),
+                        package_id: &package_id,
+                        provider_id: &provider_id,
+                        model_id: &model_id,
+                        success,
+                        status_code,
+                        latency_ms,
+                        response_text: response_text.as_deref(),
+                        error_message: error_message.as_deref(),
+                    });
+                    Ok(serde_json::json!({
+                        "timestamp": row.get::<_, String>(0)?,
+                        "package_id": package_id,
+                        "provider_id": provider_id,
+                        "model_id": model_id,
+                        "success": success,
+                        "status_code": status_code,
+                        "latency_ms": latency_ms,
+                        "response_text": response_text,
+                        "error_message": error_message,
+                        "review_prompt": review_prompt,
+                    }))
+                },
+            )
+            .optional()?;
+
         Ok(serde_json::json!({
             "total_requests": total_requests,
             "total_success": total_success,
@@ -419,6 +528,7 @@ impl TelemetryStore {
             "latest_codex_route": latest_codex_route,
             "latest_quota_event": latest_quota_event,
             "latest_handoff": latest_handoff,
+            "latest_handoff_continuation": latest_handoff_continuation,
         }))
     }
 
@@ -527,6 +637,57 @@ fn cost_breakdown(conn: &Connection, column: &str) -> anyhow::Result<Vec<serde_j
         }))
     })?;
     Ok(rows.filter_map(Result::ok).collect())
+}
+
+struct HandoffReviewPromptInput<'a> {
+    package_json: Option<&'a str>,
+    package_id: &'a str,
+    provider_id: &'a str,
+    model_id: &'a str,
+    success: bool,
+    status_code: Option<i64>,
+    latency_ms: i64,
+    response_text: Option<&'a str>,
+    error_message: Option<&'a str>,
+}
+
+fn build_handoff_review_prompt(input: HandoffReviewPromptInput<'_>) -> String {
+    let fallback_result = if input.success {
+        input
+            .response_text
+            .unwrap_or("Fallback model returned no text output.")
+    } else {
+        input
+            .error_message
+            .unwrap_or("Fallback continuation failed without a recorded error message.")
+    };
+
+    format!(
+        "You are the primary Codex route reviewing a degraded fallback continuation.\n\n\
+Handoff package id: {package_id}\n\
+Fallback route: {provider_id} / {model_id}\n\
+Fallback success: {success}\n\
+Fallback HTTP status: {status_code}\n\
+Fallback latency: {latency_ms}ms\n\n\
+Original handoff package JSON:\n```json\n{package_json}\n```\n\n\
+Fallback continuation output:\n```\n{fallback_result}\n```\n\n\
+Review instructions:\n\
+1. Treat the fallback output as untrusted degraded-mode work.\n\
+2. Compare it against the handoff package objective, constraints, hazards, and completion criteria.\n\
+3. Identify any incorrect, risky, incomplete, or unsupported changes.\n\
+4. Decide whether to accept, revise, or discard the fallback result.\n\
+5. Continue from the safest next step. Do not assume hidden context beyond the package and output above.",
+        package_id = input.package_id,
+        provider_id = input.provider_id,
+        model_id = input.model_id,
+        success = input.success,
+        latency_ms = input.latency_ms,
+        status_code = input
+            .status_code
+            .map(|value| value.to_string())
+            .unwrap_or_else(|| "unknown".into()),
+        package_json = input.package_json.unwrap_or("{}"),
+    )
 }
 
 #[cfg(test)]
@@ -729,6 +890,52 @@ mod tests {
         assert_eq!(stats["latest_quota_event"]["provider_id"], "codex");
         assert_eq!(stats["latest_quota_event"]["status_code"], 429);
         assert_eq!(stats["latest_quota_event"]["retry_after_secs"], 120);
+
+        drop(store);
+        std::fs::remove_file(db_path).unwrap();
+    }
+
+    #[tokio::test]
+    async fn telemetry_stats_include_latest_handoff_continuation() {
+        let db_path = temp_db_path("dispatcher-handoff-continuation");
+        let store = TelemetryStore::new(db_path.to_string_lossy().as_ref())
+            .await
+            .unwrap();
+        let record = HandoffContinuationRecord {
+            id: "handoff_continuation_test".into(),
+            timestamp: chrono::Utc::now(),
+            package_id: "handoff_123".into(),
+            provider_id: "deepseek".into(),
+            model_id: "deepseek-reasoner".into(),
+            success: true,
+            status_code: Some(200),
+            latency_ms: 456,
+            response_text: Some("Implemented the delegated task.".into()),
+            error_message: None,
+        };
+
+        store.record_handoff_continuation(&record).await.unwrap();
+
+        let stats = store.get_stats().await.unwrap();
+        let continuation = &stats["latest_handoff_continuation"];
+        assert_eq!(continuation["package_id"], "handoff_123");
+        assert_eq!(continuation["provider_id"], "deepseek");
+        assert_eq!(continuation["model_id"], "deepseek-reasoner");
+        assert_eq!(continuation["success"], true);
+        assert_eq!(continuation["status_code"], 200);
+        assert_eq!(continuation["latency_ms"], 456);
+        assert_eq!(
+            continuation["response_text"],
+            "Implemented the delegated task."
+        );
+        assert!(continuation["review_prompt"]
+            .as_str()
+            .unwrap()
+            .contains("reviewing a degraded fallback continuation"));
+        assert!(continuation["review_prompt"]
+            .as_str()
+            .unwrap()
+            .contains("deepseek / deepseek-reasoner"));
 
         drop(store);
         std::fs::remove_file(db_path).unwrap();

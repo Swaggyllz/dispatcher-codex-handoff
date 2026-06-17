@@ -78,6 +78,7 @@ export default function App() {
               latestCodexRoute={telemetry?.latest_codex_route}
               latestQuotaEvent={telemetry?.latest_quota_event}
               latestHandoff={telemetry?.latest_handoff}
+              latestHandoffContinuation={telemetry?.latest_handoff_continuation}
             />
             <PolicyPanel policy={policy} isLoading={policyLoading} />
             <CostOverviewPanel

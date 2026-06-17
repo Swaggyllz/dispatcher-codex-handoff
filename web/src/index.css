@@ -1172,6 +1172,13 @@ button {
   line-height: 1.55;
 }
 
+.review-status {
+  margin: 12px 0 0;
+  color: hsl(var(--fg-secondary));
+  font-size: 10px;
+  line-height: 1.6;
+}
+
 .handoff-actions {
   display: flex;
   flex-wrap: wrap;
