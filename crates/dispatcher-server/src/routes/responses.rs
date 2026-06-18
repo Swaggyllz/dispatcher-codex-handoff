@@ -701,11 +701,125 @@ fn handoff_package_id(request: &ResponsesRequest) -> Option<String> {
         .map(ToOwned::to_owned)
 }
 
+fn handoff_continuation_source(request: &ResponsesRequest) -> &'static str {
+    match request
+        .extra
+        .get("handoff_continuation_source")
+        .and_then(|value| value.as_str())
+    {
+        Some("background_auto") => "background_auto",
+        _ => "user_click",
+    }
+}
+
+fn planned_handoff_threshold_from(value: Option<&str>) -> f64 {
+    value
+        .and_then(|value| value.trim().parse::<f64>().ok())
+        .unwrap_or(0.10)
+        .clamp(0.0, 1.0)
+}
+
+fn planned_handoff_threshold() -> f64 {
+    planned_handoff_threshold_from(
+        std::env::var("DISPATCHER_PLANNED_HANDOFF_THRESHOLD")
+            .ok()
+            .as_deref(),
+    )
+}
+
+fn handoff_auto_continue_enabled_from(value: Option<&str>) -> bool {
+    matches!(
+        value.map(str::trim).map(str::to_ascii_lowercase).as_deref(),
+        Some("1" | "true" | "yes" | "on")
+    )
+}
+
+fn handoff_auto_continue_enabled() -> bool {
+    handoff_auto_continue_enabled_from(
+        std::env::var("DISPATCHER_HANDOFF_AUTO_CONTINUE")
+            .ok()
+            .as_deref(),
+    )
+}
+
+fn handoff_continuation_request(
+    package: &crate::handoff::HandoffPackage,
+    source: &'static str,
+) -> ResponsesRequest {
+    let mut extra = HashMap::new();
+    extra.insert("strategy".into(), serde_json::json!("auto"));
+    extra.insert(
+        "handoff_package_id".into(),
+        serde_json::json!(package.package_id),
+    );
+    extra.insert(
+        "handoff_continuation_source".into(),
+        serde_json::json!(source),
+    );
+
+    ResponsesRequest {
+        model: "dispatcher-auto".into(),
+        instructions: None,
+        input: vec![ResponseInputItem {
+            item_type: "message".into(),
+            role: Some("user".into()),
+            content: vec![ResponseContentPart {
+                content_type: "input_text".into(),
+                text: Some(package.continuation_prompt.clone()),
+                image_url: None,
+            }],
+            name: None,
+            arguments: None,
+            call_id: None,
+            output: None,
+        }],
+        tools: Vec::new(),
+        stream: false,
+        max_output_tokens: None,
+        temperature: None,
+        reasoning: None,
+        service_tier: None,
+        extra,
+    }
+}
+
+fn schedule_background_handoff_continuation(
+    state: Arc<AppState>,
+    package: crate::handoff::HandoffPackage,
+) {
+    if !handoff_auto_continue_enabled() {
+        return;
+    }
+
+    tokio::spawn(async move {
+        run_background_handoff_continuation(state, package).await;
+    });
+}
+
+async fn run_background_handoff_continuation(
+    state: Arc<AppState>,
+    package: crate::handoff::HandoffPackage,
+) {
+    let request = handoff_continuation_request(&package, "background_auto");
+    let model_request = responses_to_model_request(&request);
+    let response = provider_responses(state, request, model_request).await;
+    if !response.status().is_success() {
+        tracing::warn!(
+            package_id = package.package_id,
+            status = response.status().as_u16(),
+            "Background handoff continuation did not complete successfully"
+        );
+    }
+}
+
 async fn provider_responses(
     state: Arc<AppState>,
     request: ResponsesRequest,
     mut model_request: ModelRequest,
 ) -> axum::response::Response {
+    let started_at = Instant::now();
+    let handoff_package_id = handoff_package_id(&request);
+    let handoff_continuation_source = handoff_continuation_source(&request);
     model_request.model = "auto".into();
     let capabilities = state.registry.capabilities().to_vec();
     let provider_health = state
@@ -723,6 +837,15 @@ async fn provider_responses(
         )
         .await
     else {
+        record_unavailable_handoff_continuation(
+            &state,
+            handoff_package_id.as_deref(),
+            handoff_continuation_source,
+            StatusCode::SERVICE_UNAVAILABLE,
+            started_at.elapsed().as_millis() as u64,
+            "No provider supports this Responses request",
+        )
+        .await;
         return (
             StatusCode::SERVICE_UNAVAILABLE,
             Json(serde_json::json!({
@@ -744,11 +867,24 @@ async fn provider_responses(
         request.stream,
     );
 
-    let handoff_package_id = handoff_package_id(&request);
     if request.stream {
-        provider_stream_responses(state, model_request, decision).await
+        provider_stream_responses(
+            state,
+            model_request,
+            decision,
+            handoff_package_id,
+            handoff_continuation_source,
+        )
+        .await
     } else {
-        provider_non_stream_responses(state, model_request, decision, handoff_package_id).await
+        provider_non_stream_responses(
+            state,
+            model_request,
+            decision,
+            handoff_package_id,
+            handoff_continuation_source,
+        )
+        .await
     }
 }
 
@@ -774,6 +910,7 @@ async fn provider_non_stream_responses(
     request: ModelRequest,
     decision: RoutingDecision,
     handoff_package_id: Option<String>,
+    handoff_continuation_source: &'static str,
 ) -> axum::response::Response {
     let started_at = Instant::now();
     let mut fallback_chain = Vec::new();
@@ -805,6 +942,7 @@ async fn provider_non_stream_responses(
                     &state,
                     ProviderHandoffContinuation {
                         package_id: handoff_package_id.as_deref(),
+                        source: handoff_continuation_source,
                         decision: &attempt,
                         success: true,
                         status_code: Some(StatusCode::OK),
@@ -847,6 +985,7 @@ async fn provider_non_stream_responses(
         &state,
         ProviderHandoffContinuation {
             package_id: handoff_package_id.as_deref(),
+            source: handoff_continuation_source,
             decision: &decision,
             success: false,
             status_code: Some(StatusCode::BAD_GATEWAY),
@@ -874,6 +1013,8 @@ async fn provider_stream_responses(
     state: Arc<AppState>,
     request: ModelRequest,
     decision: RoutingDecision,
+    handoff_package_id: Option<String>,
+    handoff_continuation_source: &'static str,
 ) -> axum::response::Response {
     let mut fallback_chain = Vec::new();
     for mut attempt in provider_attempts(&state, &decision) {
@@ -894,7 +1035,13 @@ async fn provider_stream_responses(
                     RouteAttemptStatus::Success,
                     None,
                 ));
-                return provider_sse_response(state, stream, attempt);
+                return provider_sse_response(
+                    state,
+                    stream,
+                    attempt,
+                    handoff_package_id,
+                    handoff_continuation_source,
+                );
             }
             Err(error) => {
                 state
@@ -919,6 +1066,21 @@ async fn provider_stream_responses(
         }
     }
 
+    record_handoff_continuation(
+        &state,
+        ProviderHandoffContinuation {
+            package_id: handoff_package_id.as_deref(),
+            source: handoff_continuation_source,
+            decision: &decision,
+            success: false,
+            status_code: Some(StatusCode::BAD_GATEWAY),
+            latency_ms: 0,
+            response_text: None,
+            error_message: Some("All compatible providers failed before streaming".into()),
+        },
+    )
+    .await;
+
     (
         StatusCode::BAD_GATEWAY,
         Json(serde_json::json!({
@@ -939,6 +1101,8 @@ struct ProviderSseRuntime {
     usage: Option<Usage>,
     state: Arc<AppState>,
     decision: RoutingDecision,
+    handoff_package_id: Option<String>,
+    handoff_continuation_source: &'static str,
     started_at: Instant,
     finished: bool,
 }
@@ -947,6 +1111,8 @@ fn provider_sse_response(
     state: Arc<AppState>,
     upstream: Box<dyn futures::Stream<Item = Result<StreamChunk, ProviderError>> + Send + Unpin>,
     decision: RoutingDecision,
+    handoff_package_id: Option<String>,
+    handoff_continuation_source: &'static str,
 ) -> axum::response::Response {
     let mut converter = ResponsesStreamState::new(decision.model_id.clone());
     let pending = converter.start().into();
@@ -957,6 +1123,8 @@ fn provider_sse_response(
         usage: None,
         state,
         decision: decision.clone(),
+        handoff_package_id,
+        handoff_continuation_source,
         started_at: Instant::now(),
         finished: false,
     };
@@ -1000,6 +1168,20 @@ fn provider_sse_response(
                         Some(error.to_string()),
                     )
                     .await;
+                    record_handoff_continuation(
+                        &runtime.state,
+                        ProviderHandoffContinuation {
+                            package_id: runtime.handoff_package_id.as_deref(),
+                            source: runtime.handoff_continuation_source,
+                            decision: &runtime.decision,
+                            success: false,
+                            status_code: None,
+                            latency_ms: runtime.started_at.elapsed().as_millis() as u64,
+                            response_text: None,
+                            error_message: Some(error.to_string()),
+                        },
+                    )
+                    .await;
                     runtime
                         .pending
                         .push_back(runtime.converter.fail(&error.to_string()));
@@ -1032,6 +1214,21 @@ fn provider_sse_response(
                         &response,
                         true,
                         None,
+                    )
+                    .await;
+                    let response_text = runtime.converter.response_text();
+                    record_handoff_continuation(
+                        &runtime.state,
+                        ProviderHandoffContinuation {
+                            package_id: runtime.handoff_package_id.as_deref(),
+                            source: runtime.handoff_continuation_source,
+                            decision: &runtime.decision,
+                            success: true,
+                            status_code: Some(StatusCode::OK),
+                            latency_ms: response.latency_ms,
+                            response_text,
+                            error_message: None,
+                        },
                     )
                     .await;
                     runtime
@@ -1113,6 +1310,7 @@ fn provider_response_text(response: &ChatCompletionResponse) -> Option<String> {
 
 struct ProviderHandoffContinuation<'a> {
     package_id: Option<&'a str>,
+    source: &'a str,
     decision: &'a RoutingDecision,
     success: bool,
     status_code: Option<StatusCode>,
@@ -1142,8 +1340,145 @@ async fn record_handoff_continuation(
             latency_ms: continuation.latency_ms,
             response_text: continuation.response_text,
             error_message: continuation.error_message,
+            source: continuation.source.into(),
+            status: if continuation.success {
+                "succeeded".into()
+            } else {
+                "failed".into()
+            },
         })
         .await;
+}
+
+async fn record_unavailable_handoff_continuation(
+    state: &Arc<AppState>,
+    package_id: Option<&str>,
+    source: &str,
+    status_code: StatusCode,
+    latency_ms: u64,
+    error_message: &str,
+) {
+    let Some(package_id) = package_id else {
+        return;
+    };
+
+    let _ = state
+        .telemetry
+        .record_handoff_continuation(&HandoffContinuationRecord {
+            id: uuid::Uuid::new_v4().to_string(),
+            timestamp: chrono::Utc::now(),
+            package_id: package_id.into(),
+            provider_id: "unavailable".into(),
+            model_id: "unavailable".into(),
+            success: false,
+            status_code: Some(status_code.as_u16()),
+            latency_ms,
+            response_text: None,
+            error_message: Some(error_message.into()),
+            source: source.into(),
+            status: "failed".into(),
+        })
+        .await;
+}
+
+async fn record_codex_quota_and_handoff_with_threshold(
+    state: &Arc<AppState>,
+    requested_model: &str,
+    effective_route: &CodexRoute,
+    original_request: &ResponsesRequest,
+    status: StatusCode,
+    headers: &HeaderMap,
+    threshold: f64,
+) -> Option<crate::handoff::HandoffPackage> {
+    let quota_signal = crate::handoff::QuotaSignal::from_response(status, headers);
+    let snapshots =
+        crate::handoff::quota_snapshots_from_headers(headers, "codex", &effective_route.model);
+
+    if quota_signal.is_emergency || quota_signal.normalized_headroom.is_some() {
+        let event = crate::telemetry::QuotaEventRecord {
+            id: uuid::Uuid::new_v4().to_string(),
+            timestamp: chrono::Utc::now(),
+            provider_id: "codex".into(),
+            model_id: effective_route.model.clone(),
+            status_code: quota_signal.status_code,
+            retry_after_secs: quota_signal.retry_after_secs,
+            normalized_headroom: quota_signal.normalized_headroom,
+            source: quota_signal.source.clone(),
+        };
+        if let Err(error) = state.telemetry.record_quota_event(&event).await {
+            tracing::warn!("Failed to record Codex quota event: {error}");
+        }
+    }
+
+    for snapshot in &snapshots {
+        let record = crate::telemetry::QuotaSnapshotRecord {
+            id: uuid::Uuid::new_v4().to_string(),
+            timestamp: chrono::Utc::now(),
+            provider_id: snapshot.provider_id.clone(),
+            model_id: snapshot.model_id.clone(),
+            bucket: snapshot.bucket.clone(),
+            limit: snapshot.limit,
+            remaining: snapshot.remaining,
+            normalized_headroom: snapshot.normalized_headroom,
+            source: snapshot.source.clone(),
+        };
+        if let Err(error) = state.telemetry.record_quota_snapshot(&record).await {
+            tracing::warn!("Failed to record Codex quota snapshot: {error}");
+        }
+    }
+
+    if quota_signal.is_emergency {
+        let package = crate::handoff::EmergencyHandoffInput {
+            requested_model: requested_model.into(),
+            selected_model: effective_route.model.clone(),
+            reasoning_effort: effective_route.reasoning_effort.clone(),
+            speed: codex_speed_label(effective_route.speed).into(),
+            agent_tier: format!("{:?}", effective_route.agent_tier).to_lowercase(),
+            dispatcher_mode: "auto".into(),
+            latest_user_request: latest_user_text(original_request),
+            cwd: std::env::current_dir()
+                .map(|path| path.display().to_string())
+                .unwrap_or_default(),
+            error_message: format!("Codex upstream returned HTTP {status}"),
+            signal: quota_signal,
+        }
+        .build();
+        if let Err(error) = state.telemetry.record_handoff_package(&package).await {
+            tracing::warn!("Failed to record Codex handoff package: {error}");
+        }
+        return Some(package);
+    }
+
+    if !crate::handoff::should_trigger_planned_handoff(&snapshots, threshold, false) {
+        return None;
+    }
+
+    let snapshot = snapshots.iter().min_by(|left, right| {
+        left.normalized_headroom
+            .total_cmp(&right.normalized_headroom)
+    })?;
+
+    let package = crate::handoff::PlannedHandoffInput {
+        requested_model: requested_model.into(),
+        selected_model: effective_route.model.clone(),
+        reasoning_effort: effective_route.reasoning_effort.clone(),
+        speed: codex_speed_label(effective_route.speed).into(),
+        agent_tier: format!("{:?}", effective_route.agent_tier).to_lowercase(),
+        dispatcher_mode: "auto".into(),
+        latest_user_request: latest_user_text(original_request),
+        cwd: std::env::current_dir()
+            .map(|path| path.display().to_string())
+            .unwrap_or_default(),
+        normalized_headroom: snapshot.normalized_headroom,
+        threshold: threshold.clamp(0.0, 1.0),
+        source: snapshot.source.clone(),
+    }
+    .build();
+    if let Err(error) = state.telemetry.record_handoff_package(&package).await {
+        tracing::warn!("Failed to record planned Codex handoff package: {error}");
+    }
+
+    Some(package)
 }
 
 async fn record_provider_telemetry(
@@ -1359,43 +1694,20 @@ async fn forward_codex_response(
     }
 
     let status = response.status();
-    let quota_signal = crate::handoff::QuotaSignal::from_response(status, response.headers());
-    let handoff_emergency = quota_signal.is_emergency;
-    if handoff_emergency || quota_signal.normalized_headroom.is_some() {
-        let event = crate::telemetry::QuotaEventRecord {
-            id: uuid::Uuid::new_v4().to_string(),
-            timestamp: chrono::Utc::now(),
-            provider_id: "codex".into(),
-            model_id: effective_route.model.clone(),
-            status_code: quota_signal.status_code,
-            retry_after_secs: quota_signal.retry_after_secs,
-            normalized_headroom: quota_signal.normalized_headroom,
-            source: quota_signal.source.clone(),
-        };
-        if let Err(error) = state.telemetry.record_quota_event(&event).await {
-            tracing::warn!("Failed to record Codex quota event: {error}");
-        }
-    }
-
-    if handoff_emergency {
-        let package = crate::handoff::EmergencyHandoffInput {
-            requested_model: requested_model.into(),
-            selected_model: effective_route.model.clone(),
-            reasoning_effort: effective_route.reasoning_effort.clone(),
-            speed: codex_speed_label(effective_route.speed).into(),
-            agent_tier: format!("{:?}", effective_route.agent_tier).to_lowercase(),
-            dispatcher_mode: "auto".into(),
-            latest_user_request: latest_user_text(original_request),
-            cwd: std::env::current_dir()
-                .map(|path| path.display().to_string())
-                .unwrap_or_default(),
-            error_message: format!("Codex upstream returned HTTP {status}"),
-            signal: quota_signal,
-        }
-        .build();
-        if let Err(error) = state.telemetry.record_handoff_package(&package).await {
-            tracing::warn!("Failed to record Codex handoff package: {error}");
-        }
+    let handoff_emergency =
+        crate::handoff::QuotaSignal::from_response(status, response.headers()).is_emergency;
+    let handoff_package = record_codex_quota_and_handoff_with_threshold(
+        state,
+        requested_model,
+        &effective_route,
+        original_request,
+        status,
+        response.headers(),
+        planned_handoff_threshold(),
+    )
+    .await;
+    if let Some(package) = handoff_package.clone() {
+        schedule_background_handoff_continuation(state.clone(), package);
     }
     let telemetry_error =
         (!status.is_success()).then(|| format!("Codex upstream returned HTTP {status}"));
@@ -1430,11 +1742,18 @@ async fn forward_codex_response(
                 "false"
             },
         );
-    if handoff_emergency {
-        builder = builder.header("x-dispatcher-handoff", "emergency");
+    if let Some(package) = &handoff_package {
+        builder = builder.header(
+            "x-dispatcher-handoff",
+            if handoff_emergency {
+                "emergency"
+            } else {
+                package.trigger.as_str()
+            },
+        );
         builder = builder.header(
             "x-dispatcher-handoff-confidence",
-            "emergency_reconstruction",
+            package.confidence.as_str(),
         );
     }
     if let Some(content_type) = content_type {
@@ -1803,6 +2122,78 @@ mod tests {
     }
 
     #[test]
+    fn handoff_continuation_source_accepts_background_auto_only() {
+        let mut request = route_request("continue from handoff");
+        assert_eq!(handoff_continuation_source(&request), "user_click");
+
+        request.extra.insert(
+            "handoff_continuation_source".into(),
+            serde_json::json!("background_auto"),
+        );
+        assert_eq!(handoff_continuation_source(&request), "background_auto");
+
+        request.extra.insert(
+            "handoff_continuation_source".into(),
+            serde_json::json!("unexpected"),
+        );
+        assert_eq!(handoff_continuation_source(&request), "user_click");
+    }
+
+    #[test]
+    fn planned_handoff_threshold_uses_normalized_default_and_clamps() {
+        assert_eq!(planned_handoff_threshold_from(None), 0.10);
+        assert_eq!(planned_handoff_threshold_from(Some("0.2")), 0.2);
+        assert_eq!(planned_handoff_threshold_from(Some("2")), 1.0);
+        assert_eq!(planned_handoff_threshold_from(Some("-1")), 0.0);
+        assert_eq!(planned_handoff_threshold_from(Some("invalid")), 0.10);
+    }
+
+    #[test]
+    fn handoff_auto_continue_requires_explicit_truthy_config() {
+        assert!(!handoff_auto_continue_enabled_from(None));
+        assert!(handoff_auto_continue_enabled_from(Some("1")));
+        assert!(handoff_auto_continue_enabled_from(Some(" true ")));
+        assert!(handoff_auto_continue_enabled_from(Some("YES")));
+        assert!(handoff_auto_continue_enabled_from(Some("on")));
+        assert!(!handoff_auto_continue_enabled_from(Some("0")));
+        assert!(!handoff_auto_continue_enabled_from(Some("false")));
+        assert!(!handoff_auto_continue_enabled_from(Some("background_auto")));
+    }
+
+    #[test]
+    fn handoff_continuation_request_marks_background_source() {
+        let package = crate::handoff::PlannedHandoffInput {
+            requested_model: "dispatcher-auto".into(),
+            selected_model: "gpt-5.4".into(),
+            reasoning_effort: "medium".into(),
+            speed: "standard".into(),
+            agent_tier: "medium".into(),
+            dispatcher_mode: "auto".into(),
+            latest_user_request: "finish dispatcher 2.0".into(),
+            cwd: "/tmp".into(),
+            normalized_headroom: 0.08,
+            threshold: 0.10,
+            source: "rate_limit_headers".into(),
+        }
+        .build();
+
+        let request = handoff_continuation_request(&package, "background_auto");
+
+        assert_eq!(request.model, "dispatcher-auto");
+        assert!(!request.stream);
+        assert_eq!(
+            request.extra["handoff_package_id"],
+            serde_json::json!(package.package_id)
+        );
+        assert_eq!(
+            request.extra["handoff_continuation_source"],
+            serde_json::json!("background_auto")
+        );
+        assert_eq!(handoff_continuation_source(&request), "background_auto");
+        assert!(latest_user_text(&request).contains("observed quota pressure"));
+    }
+
+    #[test]
     fn codex_quota_signal_detects_429() {
         let mut headers = HeaderMap::new();
         headers.insert("retry-after", "60".parse().unwrap());
@@ -1819,6 +2210,25 @@ mod tests {
         registry.register(Arc::new(DemoProvider::new()));
         let path = std::env::temp_dir().join(format!(
             "dispatcher-provider-responses-{}.db",
+            uuid::Uuid::new_v4()
+        ));
+        let config = RoutingConfig::default();
+        let state = Arc::new(AppState {
+            engine: RoutingEngine::new(config.clone()),
+            registry,
+            telemetry: crate::telemetry::TelemetryStore::new(path.to_string_lossy().as_ref())
+                .await
+                .unwrap(),
+            routing_config: config,
+            policy_config_path: None,
+        });
+        (state, path)
+    }
+
+    async fn empty_provider_test_state() -> (Arc<AppState>, std::path::PathBuf) {
+        let registry = ProviderRegistry::new();
+        let path = std::env::temp_dir().join(format!(
+            "dispatcher-empty-provider-responses-{}.db",
             uuid::Uuid::new_v4()
         ));
         let config = RoutingConfig::default();
@@ -1911,10 +2321,45 @@ mod tests {
             .as_str()
             .unwrap()
             .contains("hello handoff continuation"));
+        assert_eq!(continuation["source"], "user_click");
+        assert_eq!(continuation["status"], "succeeded");
         assert!(continuation["review_prompt"]
             .as_str()
             .unwrap()
             .contains("degraded fallback continuation"));
+
+        drop(state);
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[tokio::test]
+    async fn provider_auto_stream_records_handoff_continuation_when_tagged() {
+        let (state, path) = provider_test_state().await;
+        let mut request = route_request("hello stream handoff continuation");
+        request
+            .extra
+            .insert("handoff_package_id".into(), serde_json::json!("pkg_stream"));
+        let model_request = responses_to_model_request(&request);
+
+        let response = provider_responses(state.clone(), request, model_request).await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let body = String::from_utf8(body.to_vec()).unwrap();
+        assert!(body.contains("event: response.completed"));
+        let stats = state.telemetry.get_stats().await.unwrap();
+        let continuation = &stats["latest_handoff_continuation"];
+        assert_eq!(continuation["package_id"], "pkg_stream");
+        assert_eq!(continuation["provider_id"], "demo");
+        assert_eq!(continuation["success"], true);
+        assert_eq!(continuation["source"], "user_click");
+        assert_eq!(continuation["status"], "succeeded");
+        assert!(continuation["response_text"]
+            .as_str()
+            .unwrap()
+            .contains("hello stream handoff continuation"));
 
         drop(state);
         std::fs::remove_file(path).unwrap();
@@ -1932,6 +2377,96 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let stats = state.telemetry.get_stats().await.unwrap();
         assert!(stats["latest_handoff_continuation"].is_null());
+
+        drop(state);
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[tokio::test]
+    async fn provider_auto_records_tagged_continuation_failure_when_no_provider_matches() {
+        let (state, path) = empty_provider_test_state().await;
+        let mut request = route_request("hello unavailable handoff continuation");
+        request.stream = false;
+        request
+            .extra
+            .insert("handoff_package_id".into(), serde_json::json!("pkg_empty"));
+        request.extra.insert(
+            "handoff_continuation_source".into(),
+            serde_json::json!("background_auto"),
+        );
+        let model_request = responses_to_model_request(&request);
+
+        let response = provider_responses(state.clone(), request, model_request).await;
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let stats = state.telemetry.get_stats().await.unwrap();
+        let continuation = &stats["latest_handoff_continuation"];
+        assert_eq!(continuation["package_id"], "pkg_empty");
+        assert_eq!(continuation["provider_id"], "unavailable");
+        assert_eq!(continuation["success"], false);
+        assert_eq!(continuation["source"], "background_auto");
+        assert_eq!(continuation["status"], "failed");
+
+        drop(state);
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[tokio::test]
+    async fn reliable_low_headroom_records_quota_snapshot_and_planned_handoff() {
+        let (state, path) = provider_test_state().await;
+        let request = route_request("finish the planned handoff implementation");
+        let route = select_codex_route(&request, &responses_to_model_request(&request));
+        let mut headers = HeaderMap::new();
+        headers.insert("x-ratelimit-limit-requests", "100".parse().unwrap());
+        headers.insert("x-ratelimit-remaining-requests", "8".parse().unwrap());
+
+        let package = record_codex_quota_and_handoff_with_threshold(
+            &state,
+            request.model.as_str(),
+            &route,
+            &request,
+            StatusCode::OK,
+            &headers,
+            0.10,
+        )
+        .await;
+
+        let stats = state.telemetry.get_stats().await.unwrap();
+        assert_eq!(stats["latest_quota_snapshot"]["normalized_headroom"], 0.08);
+        let package = package.expect("planned package should be created");
+        assert_eq!(package.trigger, "planned");
+        assert_eq!(stats["latest_handoff"]["package_id"], package.package_id);
+
+        drop(state);
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[tokio::test]
+    async fn background_handoff_continuation_records_background_source() {
+        let (state, path) = provider_test_state().await;
+        let package = crate::handoff::PlannedHandoffInput {
+            requested_model: "dispatcher-auto".into(),
+            selected_model: "gpt-5.4".into(),
+            reasoning_effort: "medium".into(),
+            speed: "standard".into(),
+            agent_tier: "medium".into(),
+            dispatcher_mode: "auto".into(),
+            latest_user_request: "finish dispatcher 2.0".into(),
+            cwd: "/tmp".into(),
+            normalized_headroom: 0.08,
+            threshold: 0.10,
+            source: "rate_limit_headers".into(),
+        }
+        .build();
+
+        run_background_handoff_continuation(state.clone(), package.clone()).await;
+
+        let stats = state.telemetry.get_stats().await.unwrap();
+        let continuation = &stats["latest_handoff_continuation"];
+        assert_eq!(continuation["package_id"], package.package_id);
+        assert_eq!(continuation["source"], "background_auto");
+        assert_eq!(continuation["status"], "succeeded");
+        assert_eq!(continuation["provider_id"], "demo");
 
         drop(state);
         std::fs::remove_file(path).unwrap();

@@ -472,6 +472,14 @@ function PersistedContinuationResult({
           }
         />
         <RouteProperty
+          label={t("dashboard.continuationSource")}
+          value={formatHandoffValue(continuation.source)}
+        />
+        <RouteProperty
+          label={t("dashboard.continuationStatus")}
+          value={formatHandoffValue(continuation.status)}
+        />
+        <RouteProperty
           label={t("dashboard.observedLatency")}
           value={`${continuation.latency_ms}ms`}
         />

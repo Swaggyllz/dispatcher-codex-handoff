@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>超级模式：把 AI 从聊天工具变成项目工程代理</title>
+    <style>
+      @page {
+        size: A4;
+        margin: 18mm 17mm 18mm 17mm;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        color: #172033;
+        background: #f6f3ec;
+        font-family:
+          "PingFang SC", "Hiragino Sans GB", "STHeiti", "Arial Unicode MS",
+          sans-serif;
+        font-size: 14px;
+        line-height: 1.82;
+      }
+
+      main {
+        width: 100%;
+        max-width: 820px;
+        margin: 0 auto;
+        padding: 34px 38px 44px;
+        background: #fffdf8;
+      }
+
+      .kicker {
+        color: #7a5d2f;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 14px 0 12px;
+        color: #111827;
+        font-size: 34px;
+        line-height: 1.16;
+        letter-spacing: 0;
+      }
+
+      .subtitle {
+        margin: 0 0 22px;
+        color: #4b5563;
+        font-size: 17px;
+        line-height: 1.65;
+      }
+
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 0 0 30px;
+      }
+
+      .chip {
+        padding: 5px 9px;
+        color: #5b4630;
+        border: 1px solid #ddcaa7;
+        border-radius: 999px;
+        background: #fbf1dc;
+        font-size: 12px;
+        font-weight: 650;
+      }
+
+      h2 {
+        margin: 34px 0 10px;
+        padding-top: 4px;
+        color: #111827;
+        font-size: 21px;
+        line-height: 1.35;
+        letter-spacing: 0;
+      }
+
+      p {
+        margin: 10px 0;
+      }
+
+      strong {
+        color: #111827;
+      }
+
+      .lead {
+        padding: 18px 20px;
+        border: 1px solid #e2d2b6;
+        border-radius: 10px;
+        background: #fff7e7;
+      }
+
+      .lead p {
+        margin: 0;
+      }
+
+      .quote {
+        margin: 20px 0;
+        padding: 14px 18px;
+        border-left: 4px solid #b8842f;
+        background: #faf7ef;
+        color: #374151;
+      }
+
+      pre {
+        margin: 14px 0 18px;
+        padding: 14px 16px;
+        overflow-wrap: anywhere;
+        white-space: pre-wrap;
+        border: 1px solid #e5e7eb;
+        border-radius: 9px;
+        background: #111827;
+        color: #f9fafb;
+        font-family:
+          "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono",
+          monospace;
+        font-size: 12px;
+        line-height: 1.65;
+      }
+
+      ul {
+        margin: 10px 0 16px 22px;
+        padding: 0;
+      }
+
+      li {
+        margin: 5px 0;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin: 18px 0 4px;
+      }
+
+      .card {
+        min-height: 110px;
+        padding: 14px 15px;
+        border: 1px solid #e5dcc8;
+        border-radius: 10px;
+        background: #fffaf0;
+      }
+
+      .card h3 {
+        margin: 0 0 6px;
+        color: #1f2937;
+        font-size: 15px;
+      }
+
+      .card p {
+        margin: 0;
+        color: #4b5563;
+        font-size: 13px;
+        line-height: 1.65;
+      }
+
+      .takeaway {
+        margin-top: 34px;
+        padding: 18px 20px;
+        border: 1px solid #c7d2fe;
+        border-radius: 10px;
+        background: #eef2ff;
+      }
+
+      .takeaway h2 {
+        margin-top: 0;
+        padding-top: 0;
+      }
+
+      .footer {
+        margin-top: 32px;
+        padding-top: 18px;
+        border-top: 1px solid #e5e7eb;
+        color: #6b7280;
+        font-size: 12px;
+      }
+
+      @media print {
+        body {
+          background: #fff;
+        }
+
+        main {
+          padding: 0;
+          background: #fff;
+        }
+
+        h2,
+        .card,
+        .takeaway {
+          break-inside: avoid;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="kicker">AI Project Operating System</div>
+      <h1>超级模式：把 AI 从聊天工具变成项目工程代理</h1>
+      <p class="subtitle">
+        一套更适合真实项目的 AI 工作方法：先锁边界，再拆任务，再执行验证，最后留下可交接的证据。
+      </p>
+      <div class="meta">
+        <span class="chip">Multi-agent PM</span>
+        <span class="chip">目标循环</span>
+        <span class="chip">证据账本</span>
+        <span class="chip">风险门禁</span>
+        <span class="chip">文档沉淀</span>
+      </div>
+
+      <section class="lead">
+        <p>
+          很多人用 AI 做项目，其实还停留在“聊天”：问一句、答一句、改一段、报错再问。
+          AI 看起来很忙，但项目状态并没有真正变清楚。超级模式解决的不是“让 AI 更会说”，
+          而是让 AI 按工程项目的方式持续交付。
+        </p>
+      </section>
+
+      <h2>普通 AI 工作流的问题</h2>
+      <p>大部分人用 AI 做项目，流程大概是这样：</p>
+      <pre>我提需求
+-> AI 给方案
+-> 我让它写代码
+-> 报错
+-> 我复制报错
+-> AI 再修
+-> 最后不知道到底完成没有</pre>
+      <p>
+        这个流程最大的问题是：没有边界，没有验收，没有证据，没有交接。AI 可能做了很多动作，
+        但项目仍然是模糊的。
+      </p>
+
+      <h2>超级模式是什么</h2>
+      <p>
+        超级模式不是一个“神奇 prompt”。它更像一个项目操作系统。启动后，AI 不只是回答问题，
+        而是按一套项目治理流程推进。
+      </p>
+      <pre>先读项目事实源
+-> 锁定范围和边界
+-> 补齐目标和验收标准
+-> 用 PM 思维拆任务
+-> 必要时分多个 agent 研究
+-> 小步实现
+-> 真实验证
+-> 失败就诊断修复
+-> 沉淀文档
+-> 最后给可交接汇报</pre>
+      <div class="quote">
+        普通 loop 只是让 AI 一直干。超级模式是让 AI 在一个有边界、有证据、有交接机制的项目系统里干。
+      </div>
+
+      <h2>第一步：先读事实，不要先写代码</h2>
+      <p>复杂项目最怕凭记忆推进。超级模式启动后，第一步必须读取项目事实源。</p>
+      <pre>PROJECT_MANUAL.md
+README
+git status
+最新 commit
+最近验证结果
+当前服务状态
+Scope Boundaries
+Release Strategy</pre>
+      <p>
+        这一步看起来慢，但能避免非常多返工：比如改错仓库、覆盖旧版本、重复实现、忘记上一次已经验证过的内容。
+      </p>
+
+      <h2>第二步：补齐目标和验收标准</h2>
+      <p>很多项目不是 AI 做不出来，而是“完成”的定义不清楚。</p>
+      <pre>目标是什么
+不做什么
+哪些文件可以改
+哪些文件不能动
+什么叫完成
+要跑哪些验证
+是否需要更新文档
+是否允许 commit / push / 发布</pre>
+      <p>
+        如果这些没写清楚，超级模式会先从代码、文档、配置、日志里推断一版合理验收标准，
+        然后再执行，而不是上来就空想方案。
+      </p>
+
+      <h2>第三步：用 Multi-agent PM 拆任务</h2>
+      <p>复杂项目不要让一个 AI 从头想到尾。主 AI 先当 PM，把任务拆成独立问题，再派不同 agent 去查。</p>
+      <div class="grid">
+        <div class="card">
+          <h3>PM Agent</h3>
+          <p>拆目标、定验收、排优先级，负责让项目不跑偏。</p>
+        </div>
+        <div class="card">
+          <h3>Explorer Agent</h3>
+          <p>只查事实，不改文件，输出缺口、证据和风险。</p>
+        </div>
+        <div class="card">
+          <h3>Worker Agent</h3>
+          <p>按限定范围实现，不碰无关文件，不做无关重构。</p>
+        </div>
+        <div class="card">
+          <h3>Reviewer / Verifier</h3>
+          <p>找风险、跑验证、复现问题，用命令结果说话。</p>
+        </div>
+      </div>
+      <p>
+        多 agent 的价值不是热闹，而是减少盲区。每个 agent 都要有明确任务卡：查什么、允许看什么、禁止做什么、输出什么。
+      </p>
+
+      <h2>第四步：目标循环执行</h2>
+      <p>真正实现时，超级模式按目标循环推进。</p>
+      <pre>读取现状
+-> 判断问题
+-> 制定小计划
+-> 小步实现
+-> 运行验证
+-> 失败诊断
+-> 修复
+-> 再验证</pre>
+      <p>
+        这里最重要的一条是：不要停在方案。能操作就操作，能验证就验证，验证失败就继续诊断。
+        不说“你可以试试运行测试”，而是直接运行测试。
+      </p>
+
+      <h2>第五步：验证必须是真实证据</h2>
+      <p>超级模式里不能说“应该没问题”。必须有验证命令和结果。</p>
+      <pre>L1 单点测试
+L2 模块测试
+L3 workspace 测试
+L4 lint / typecheck / build
+L5 服务启动验证
+L6 发布 readiness
+L7 浏览器或人工验收</pre>
+      <p>
+        最终汇报必须写清楚：跑了什么命令、结果是什么、是否通过、失败过什么、怎么修的、还有什么风险。
+        没有证据的“完成”，都不算完成。
+      </p>
+
+      <h2>第六步：风险门禁</h2>
+      <p>超级模式不是无限自动化。有些事 AI 可以直接做，有些事必须停下来确认。</p>
+      <pre>可以直接做：
+读文件、查日志、跑测试、小范围改代码、更新文档、启动本地服务
+
+必须确认：
+删除文件、清库、数据库迁移、生产操作、发布 release、git push、
+覆盖旧仓库、修改账号/权限/密钥、不可逆操作</pre>
+      <p>
+        真正可用的自动化，不是什么都敢干，而是知道什么时候必须停。
+      </p>
+
+      <h2>第七步：沉淀文档，让项目可接力</h2>
+      <p>超级模式每完成一个阶段，都要更新项目状态。项目不能靠聊天记录活着，要靠文件系统活着。</p>
+      <pre>PROJECT_MANUAL.md：项目事实源
+WORK_ORDERS.md：任务状态
+DECISIONS.md：关键决策
+EVIDENCE.md：验证证据
+RISKS.md：风险台账
+HANDOFF.md：下一窗口接手摘要</pre>
+      <p>
+        这样第二天换窗口、换 agent、换人接手，都能知道项目做到哪，哪些东西验证过，哪些边界不能碰。
+      </p>
+
+      <h2>超级模式启动词</h2>
+      <p>完整启动词可以这样写：</p>
+      <pre>启动超级模式来做这个项目。
+
+先读项目手册、README、git 状态、最新提交和验证记录。
+锁定 Scope 边界和发布策略。
+补齐目标、范围、验收标准和禁止事项。
+必要时用 Multi-agent PM 拆任务、分 agent、交叉核验。
+按目标循环执行：读现状 -> 判断问题 -> 小计划 -> 实现 -> 验证 -> 修复 -> 再验证。
+关键决策写记录，验证结果留证据，风险写清楚。
+最后更新项目手册和交接摘要，给高信号汇报。
+不要停在方案；能操作就操作；发布、删除、覆盖、迁移、push 前必须确认。</pre>
+      <p>短版本就是：</p>
+      <pre>启动超级模式，按项目操作系统推进。</pre>
+
+      <section class="takeaway">
+        <h2>最后的理解</h2>
+        <p>
+          超级模式真正有用的地方，不是 prompt 写得多漂亮，而是它把 AI 从“回答问题的人”，
+          变成了“推进项目的工程代理”。
+        </p>
+        <pre>尊重事实
+遵守边界
+持续执行
+留下证据</pre>
+        <p>
+          这四件事做好，AI 才能真的参与复杂项目。否则它只是一个很会说话的工具。
+          超级模式不是让项目变复杂，而是让复杂项目不失控。
+        </p>
+      </section>
+
+      <p class="footer">
+        生成时间：2026-06-18。本文适合发群分享，也可以作为项目 AI 协作规范的启动说明。
+      </p>
+    </main>
+  </body>
+</html>

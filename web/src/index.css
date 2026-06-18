@@ -1230,6 +1230,33 @@ button {
   white-space: pre-wrap;
 }
 
+.simple-result-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.simple-result-meta code {
+  max-width: 220px;
+  overflow: hidden;
+  padding: 4px 7px;
+  color: hsl(var(--fg-muted));
+  border: 1px solid hsl(var(--border-color) / 0.82);
+  border-radius: 6px;
+  background: hsl(var(--bg-input) / 0.65);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.simple-result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
 .simple-footnote {
   margin: 0;
   color: hsl(var(--fg-muted));

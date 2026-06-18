@@ -64,6 +64,7 @@ export interface TelemetryStats {
   provider_stats: ProviderStat[];
   latest_codex_route: CodexRouteTelemetry | null;
   latest_quota_event: QuotaEventTelemetry | null;
+  latest_quota_snapshot: QuotaSnapshotTelemetry | null;
   latest_handoff: HandoffPackageTelemetry | null;
   latest_handoff_continuation: HandoffContinuationTelemetry | null;
 }
@@ -109,6 +110,17 @@ export interface QuotaEventTelemetry {
   status_code: number | null;
   retry_after_secs: number | null;
   normalized_headroom: number | null;
+  source: string;
+}
+
+export interface QuotaSnapshotTelemetry {
+  timestamp: string;
+  provider_id: string;
+  model_id: string;
+  bucket: string;
+  limit: number;
+  remaining: number;
+  normalized_headroom: number;
   source: string;
 }
 
@@ -175,6 +187,8 @@ export interface HandoffContinuationTelemetry {
   latency_ms: number;
   response_text: string | null;
   error_message: string | null;
+  source: string;
+  status: string;
   review_prompt: string;
 }
 

@@ -36,6 +36,19 @@ pub struct QuotaEventRecord {
 }
 
 #[derive(Debug, Clone)]
+pub struct QuotaSnapshotRecord {
+    pub id: String,
+    pub timestamp: chrono::DateTime<chrono::Utc>,
+    pub provider_id: String,
+    pub model_id: String,
+    pub bucket: String,
+    pub limit: f64,
+    pub remaining: f64,
+    pub normalized_headroom: f64,
+    pub source: String,
+}
+
+#[derive(Debug, Clone)]
 pub struct HandoffContinuationRecord {
     pub id: String,
     pub timestamp: chrono::DateTime<chrono::Utc>,
@@ -47,6 +60,8 @@ pub struct HandoffContinuationRecord {
     pub latency_ms: u64,
     pub response_text: Option<String>,
     pub error_message: Option<String>,
+    pub source: String,
+    pub status: String,
 }
 
 pub struct TelemetryStore {
@@ -100,6 +115,18 @@ impl TelemetryStore {
                 source TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS quota_snapshots (
+                id TEXT PRIMARY KEY,
+                timestamp TEXT NOT NULL,
+                provider_id TEXT NOT NULL,
+                model_id TEXT NOT NULL,
+                bucket TEXT NOT NULL,
+                limit_value REAL NOT NULL,
+                remaining_value REAL NOT NULL,
+                normalized_headroom REAL NOT NULL,
+                source TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS handoff_packages (
                 package_id TEXT PRIMARY KEY,
                 created_at TEXT NOT NULL,
@@ -120,7 +147,9 @@ impl TelemetryStore {
                 status_code INTEGER,
                 latency_ms INTEGER NOT NULL DEFAULT 0,
                 response_text TEXT,
-                error_message TEXT
+                error_message TEXT,
+                source TEXT NOT NULL DEFAULT 'user_click',
+                status TEXT NOT NULL DEFAULT ''
             );
 
             CREATE INDEX IF NOT EXISTS idx_telemetry_timestamp ON telemetry(timestamp);
@@ -128,11 +157,13 @@ impl TelemetryStore {
             CREATE INDEX IF NOT EXISTS idx_telemetry_success ON telemetry(success);
             CREATE INDEX IF NOT EXISTS idx_codex_routes_timestamp ON codex_routes(timestamp);
             CREATE INDEX IF NOT EXISTS idx_quota_events_timestamp ON quota_events(timestamp);
+            CREATE INDEX IF NOT EXISTS idx_quota_snapshots_timestamp ON quota_snapshots(timestamp);
             CREATE INDEX IF NOT EXISTS idx_handoff_packages_created_at ON handoff_packages(created_at);
             CREATE INDEX IF NOT EXISTS idx_handoff_continuations_timestamp ON handoff_continuations(timestamp);
             CREATE INDEX IF NOT EXISTS idx_handoff_continuations_package ON handoff_continuations(package_id);",
         )?;
         ensure_telemetry_agent_tier_column(&conn)?;
+        ensure_handoff_continuation_metadata_columns(&conn)?;
 
         Ok(Self {
             db: Arc::new(Mutex::new(conn)),
@@ -211,6 +242,28 @@ impl TelemetryStore {
         Ok(())
     }
 
+    pub async fn record_quota_snapshot(&self, record: &QuotaSnapshotRecord) -> anyhow::Result<()> {
+        let db = self.db.lock().await;
+        db.execute(
+            "INSERT INTO quota_snapshots (
+                id, timestamp, provider_id, model_id, bucket, limit_value,
+                remaining_value, normalized_headroom, source
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![
+                record.id,
+                record.timestamp.to_rfc3339(),
+                record.provider_id,
+                record.model_id,
+                record.bucket,
+                record.limit,
+                record.remaining,
+                record.normalized_headroom,
+                record.source,
+            ],
+        )?;
+        Ok(())
+    }
+
     pub async fn record_handoff_package(
         &self,
         package: &crate::handoff::HandoffPackage,
@@ -242,8 +295,8 @@ impl TelemetryStore {
         db.execute(
             "INSERT INTO handoff_continuations (
                 id, timestamp, package_id, provider_id, model_id, success, status_code,
-                latency_ms, response_text, error_message
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                latency_ms, response_text, error_message, source, status
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
             params![
                 record.id,
                 record.timestamp.to_rfc3339(),
@@ -255,6 +308,8 @@ impl TelemetryStore {
                 record.latency_ms,
                 record.response_text,
                 record.error_message,
+                record.source,
+                record.status,
             ],
         )?;
         Ok(())
@@ -452,6 +507,29 @@ impl TelemetryStore {
             .optional()?
             .and_then(|json| serde_json::from_str::<serde_json::Value>(&json).ok());
 
+        let latest_quota_snapshot = db
+            .query_row(
+                "SELECT timestamp, provider_id, model_id, bucket, limit_value,
+                        remaining_value, normalized_headroom, source
+                 FROM quota_snapshots
+                 ORDER BY timestamp DESC, rowid DESC
+                 LIMIT 1",
+                [],
+                |row| {
+                    Ok(serde_json::json!({
+                        "timestamp": row.get::<_, String>(0)?,
+                        "provider_id": row.get::<_, String>(1)?,
+                        "model_id": row.get::<_, String>(2)?,
+                        "bucket": row.get::<_, String>(3)?,
+                        "limit": row.get::<_, f64>(4)?,
+                        "remaining": row.get::<_, f64>(5)?,
+                        "normalized_headroom": row.get::<_, f64>(6)?,
+                        "source": row.get::<_, String>(7)?,
+                    }))
+                },
+            )
+            .optional()?;
+
         let latest_handoff_continuation = db
             .query_row(
                 "SELECT handoff_continuations.timestamp,
@@ -463,6 +541,8 @@ impl TelemetryStore {
                         handoff_continuations.latency_ms,
                         handoff_continuations.response_text,
                         handoff_continuations.error_message,
+                        handoff_continuations.source,
+                        handoff_continuations.status,
                         handoff_packages.package_json
                  FROM handoff_continuations
                  LEFT JOIN handoff_packages ON handoff_packages.package_id = handoff_continuations.package_id
@@ -478,7 +558,9 @@ impl TelemetryStore {
                     let latency_ms = row.get::<_, i64>(6)?;
                     let response_text = row.get::<_, Option<String>>(7)?;
                     let error_message = row.get::<_, Option<String>>(8)?;
-                    let package_json = row.get::<_, Option<String>>(9)?;
+                    let source = row.get::<_, String>(9)?;
+                    let status = row.get::<_, String>(10)?;
+                    let package_json = row.get::<_, Option<String>>(11)?;
                     let review_prompt = build_handoff_review_prompt(HandoffReviewPromptInput {
                         package_json: package_json.as_deref(),
                         package_id: &package_id,
@@ -500,6 +582,12 @@ impl TelemetryStore {
                         "latency_ms": latency_ms,
                         "response_text": response_text,
                         "error_message": error_message,
+                        "source": source,
+                        "status": if status.is_empty() {
+                            if success { "succeeded" } else { "failed" }
+                        } else {
+                            status.as_str()
+                        },
                         "review_prompt": review_prompt,
                     }))
                 },
@@ -527,6 +615,7 @@ impl TelemetryStore {
             "provider_stats": provider_stats,
             "latest_codex_route": latest_codex_route,
             "latest_quota_event": latest_quota_event,
+            "latest_quota_snapshot": latest_quota_snapshot,
             "latest_handoff": latest_handoff,
             "latest_handoff_continuation": latest_handoff_continuation,
         }))
@@ -571,6 +660,28 @@ impl TelemetryStore {
         }
         Ok(health)
     }
+}
+
+fn ensure_handoff_continuation_metadata_columns(conn: &Connection) -> anyhow::Result<()> {
+    let mut stmt = conn.prepare("PRAGMA table_info(handoff_continuations)")?;
+    let columns = stmt.query_map([], |row| row.get::<_, String>(1))?;
+    let mut names = Vec::new();
+    for column in columns {
+        names.push(column?);
+    }
+    if !names.iter().any(|name| name == "source") {
+        conn.execute(
+            "ALTER TABLE handoff_continuations ADD COLUMN source TEXT NOT NULL DEFAULT 'user_click'",
+            [],
+        )?;
+    }
+    if !names.iter().any(|name| name == "status") {
+        conn.execute(
+            "ALTER TABLE handoff_continuations ADD COLUMN status TEXT NOT NULL DEFAULT ''",
+            [],
+        )?;
+    }
+    Ok(())
 }
 
 fn ensure_telemetry_agent_tier_column(conn: &Connection) -> anyhow::Result<()> {
@@ -896,6 +1007,35 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn telemetry_stats_include_latest_quota_snapshot() {
+        let db_path = temp_db_path("dispatcher-quota-snapshot");
+        let store = TelemetryStore::new(db_path.to_string_lossy().as_ref())
+            .await
+            .unwrap();
+        let snapshot = QuotaSnapshotRecord {
+            id: "snapshot_test".into(),
+            timestamp: chrono::Utc::now(),
+            provider_id: "codex".into(),
+            model_id: "gpt-5.5".into(),
+            bucket: "requests".into(),
+            limit: 100.0,
+            remaining: 8.0,
+            normalized_headroom: 0.08,
+            source: "rate_limit_headers".into(),
+        };
+
+        store.record_quota_snapshot(&snapshot).await.unwrap();
+
+        let stats = store.get_stats().await.unwrap();
+        assert_eq!(stats["latest_quota_snapshot"]["provider_id"], "codex");
+        assert_eq!(stats["latest_quota_snapshot"]["bucket"], "requests");
+        assert_eq!(stats["latest_quota_snapshot"]["normalized_headroom"], 0.08);
+
+        drop(store);
+        std::fs::remove_file(db_path).unwrap();
+    }
+
+    #[tokio::test]
     async fn telemetry_stats_include_latest_handoff_continuation() {
         let db_path = temp_db_path("dispatcher-handoff-continuation");
         let store = TelemetryStore::new(db_path.to_string_lossy().as_ref())
@@ -912,6 +1052,8 @@ mod tests {
             latency_ms: 456,
             response_text: Some("Implemented the delegated task.".into()),
             error_message: None,
+            source: "user_click".into(),
+            status: "succeeded".into(),
         };
 
         store.record_handoff_continuation(&record).await.unwrap();
@@ -928,6 +1070,8 @@ mod tests {
             continuation["response_text"],
             "Implemented the delegated task."
         );
+        assert_eq!(continuation["source"], "user_click");
+        assert_eq!(continuation["status"], "succeeded");
         assert!(continuation["review_prompt"]
             .as_str()
             .unwrap()

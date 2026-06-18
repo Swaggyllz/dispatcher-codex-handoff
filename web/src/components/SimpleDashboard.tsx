@@ -11,10 +11,13 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { useHandoffContinuation } from "@/hooks/useHandoffContinuation";
+import { usePrimaryReview } from "@/hooks/usePrimaryReview";
 import { extractErrorMessage } from "@/utils/errorUtils";
 import type {
+  HandoffContinuationTelemetry,
   HandoffPackageTelemetry,
   ProviderInfo,
+  ProviderContinuationResponse,
   TelemetryStats,
 } from "@/types";
 
@@ -35,8 +38,10 @@ export function SimpleDashboard({
 }: SimpleDashboardProps) {
   const { t, i18n } = useTranslation();
   const [copied, setCopied] = useState(false);
+  const [reviewCopied, setReviewCopied] = useState(false);
   const latestRoute = telemetry?.latest_codex_route ?? null;
   const latestHandoff = telemetry?.latest_handoff ?? null;
+  const latestQuotaSnapshot = telemetry?.latest_quota_snapshot ?? null;
   const activeHandoff =
     latestHandoff &&
     (!latestRoute ||
@@ -46,12 +51,22 @@ export function SimpleDashboard({
       ? latestHandoff
       : null;
   const continuation = useHandoffContinuation();
+  const primaryReview = usePrimaryReview();
+  const persistedContinuation =
+    latestHandoff &&
+    telemetry?.latest_handoff_continuation?.package_id ===
+      latestHandoff.package_id
+      ? telemetry.latest_handoff_continuation
+      : null;
 
   const status = useMemo(() => {
     if (activeHandoff) {
       return {
         tone: "warning",
-        title: t("dashboard.simpleNeedsHandoff"),
+        title:
+          activeHandoff.trigger === "planned"
+            ? t("dashboard.simplePlannedHandoff")
+            : t("dashboard.simpleNeedsHandoff"),
         detail: activeHandoff.execution_state.next_recommended_step,
       };
     }
@@ -124,6 +139,34 @@ export function SimpleDashboard({
       packageId: activeHandoff.package_id,
     });
   };
+
+  const handleCopyReviewPrompt = async () => {
+    if (!persistedContinuation?.review_prompt) return;
+    try {
+      await navigator.clipboard.writeText(persistedContinuation.review_prompt);
+      setReviewCopied(true);
+      window.setTimeout(() => setReviewCopied(false), 1800);
+    } catch {
+      setReviewCopied(false);
+    }
+  };
+
+  const handlePrimaryReview = () => {
+    if (!persistedContinuation?.review_prompt || primaryReview.isPending) {
+      return;
+    }
+
+    primaryReview.mutate({ prompt: persistedContinuation.review_prompt });
+  };
+
+  const quotaHeadroom =
+    latestQuotaSnapshot?.normalized_headroom ??
+    telemetry?.latest_quota_event?.normalized_headroom;
+  const quotaDetail = latestQuotaSnapshot
+    ? `${formatHandoffValue(latestQuotaSnapshot.bucket)} · ${
+        latestQuotaSnapshot.source
+      }`
+    : (telemetry?.latest_quota_event?.source ?? t("dashboard.notAvailable"));
 
   return (
     <section
@@ -251,10 +294,38 @@ export function SimpleDashboard({
             isPrimary={Boolean(activeHandoff)}
           />
           <SimpleActionButton
-            icon={<Route />}
-            label={t("dashboard.simpleRunCheck")}
-            detail={t("dashboard.simpleRunCheckDetail")}
-            onClick={onShowAdvanced}
+            icon={
+              persistedContinuation?.success && primaryReview.isPending ? (
+                <Loader2 className="is-spinning" />
+              ) : persistedContinuation?.success ? (
+                <ShieldCheck />
+              ) : (
+                <Route />
+              )
+            }
+            label={
+              persistedContinuation?.success
+                ? primaryReview.isPending
+                  ? t("dashboard.reviewingPrimary")
+                  : t("dashboard.reviewWithPrimary")
+                : t("dashboard.simpleRunCheck")
+            }
+            detail={
+              persistedContinuation?.success
+                ? t("dashboard.simpleReviewDetail")
+                : t("dashboard.simpleRunCheckDetail")
+            }
+            onClick={
+              persistedContinuation?.success
+                ? handlePrimaryReview
+                : onShowAdvanced
+            }
+            disabled={
+              persistedContinuation?.success ? primaryReview.isPending : false
+            }
+            isPrimary={Boolean(
+              persistedContinuation?.success && !activeHandoff,
+            )}
           />
           <SimpleActionButton
             icon={<RefreshCw />}
@@ -279,13 +350,8 @@ export function SimpleDashboard({
           />
           <SimpleSignal
             label={t("dashboard.simpleQuota")}
-            value={formatHeadroom(
-              telemetry?.latest_quota_event?.normalized_headroom,
-            )}
-            detail={
-              telemetry?.latest_quota_event?.source ??
-              t("dashboard.notAvailable")
-            }
+            value={formatHeadroom(quotaHeadroom)}
+            detail={quotaDetail}
           />
           <div className="simple-updated-chip">
             <span>{t("dashboard.simpleLastUpdated")}</span>
@@ -306,6 +372,33 @@ export function SimpleDashboard({
               ? extractErrorMessage(continuation.error)
               : extractResponsesText(continuation.data) ||
                 t("dashboard.primaryReviewReady")}
+          </p>
+        </div>
+      )}
+
+      {persistedContinuation && (
+        <SimplePersistedContinuation
+          continuation={persistedContinuation}
+          onCopyReviewPrompt={handleCopyReviewPrompt}
+          onPrimaryReview={handlePrimaryReview}
+          reviewCopied={reviewCopied}
+          isReviewing={primaryReview.isPending}
+          t={t}
+        />
+      )}
+
+      {(primaryReview.data || primaryReview.error) && (
+        <div className="simple-result-panel">
+          <span>
+            {primaryReview.error
+              ? t("dashboard.simpleRouteNeedsReview")
+              : t("dashboard.primaryReviewResult")}
+          </span>
+          <p>
+            {primaryReview.error
+              ? extractErrorMessage(primaryReview.error)
+              : extractResponsesText(primaryReview.data) ||
+                t("dashboard.noData")}
           </p>
         </div>
       )}
@@ -373,8 +466,79 @@ function formatHeadroom(headroom: number | null | undefined) {
     : `${(headroom * 100).toFixed(1)}%`;
 }
 
+function formatHandoffValue(value: string) {
+  return value.replace(/_/g, " ");
+}
+
+function SimplePersistedContinuation({
+  continuation,
+  onCopyReviewPrompt,
+  onPrimaryReview,
+  reviewCopied,
+  isReviewing,
+  t,
+}: {
+  continuation: HandoffContinuationTelemetry;
+  onCopyReviewPrompt: () => void;
+  onPrimaryReview: () => void;
+  reviewCopied: boolean;
+  isReviewing: boolean;
+  t: (key: string) => string;
+}) {
+  return (
+    <div className="simple-result-panel">
+      <span>{t("dashboard.savedFallbackContinuation")}</span>
+      <p>
+        {continuation.success
+          ? continuation.response_text || t("dashboard.noData")
+          : continuation.error_message ||
+            t("dashboard.fallbackContinuationFailed")}
+      </p>
+      <div className="simple-result-meta">
+        <code>{continuation.provider_id}</code>
+        <code>{continuation.model_id}</code>
+        <code>{formatHandoffValue(continuation.source)}</code>
+        <code>{formatHandoffValue(continuation.status)}</code>
+      </div>
+      {continuation.success && (
+        <div className="simple-result-actions">
+          <button
+            type="button"
+            className="handoff-copy-button"
+            onClick={onCopyReviewPrompt}
+          >
+            {reviewCopied ? (
+              <Check aria-hidden="true" />
+            ) : (
+              <Clipboard aria-hidden="true" />
+            )}
+            {reviewCopied
+              ? t("dashboard.reviewPromptCopied")
+              : t("dashboard.copyReviewPrompt")}
+          </button>
+          <button
+            type="button"
+            className="handoff-copy-button"
+            onClick={onPrimaryReview}
+            disabled={isReviewing}
+          >
+            {isReviewing ? (
+              <Loader2 className="is-spinning" aria-hidden="true" />
+            ) : (
+              <ShieldCheck aria-hidden="true" />
+            )}
+            {isReviewing
+              ? t("dashboard.reviewingPrimary")
+              : t("dashboard.reviewWithPrimary")}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function extractResponsesText(
-  response: ReturnType<typeof useHandoffContinuation>["data"],
+  response: ProviderContinuationResponse | undefined,
 ) {
   return (
     response?.output

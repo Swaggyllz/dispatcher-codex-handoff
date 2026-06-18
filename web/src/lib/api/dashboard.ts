@@ -115,3 +115,42 @@ export function sendHandoffContinuation(
     };
   });
 }
+
+export function sendPrimaryReview(
+  prompt: string,
+): Promise<ProviderContinuationResponse> {
+  return fetch(`${BASE}/responses`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Dispatcher-Mode": "auto",
+    },
+    body: JSON.stringify({
+      model: "dispatcher-auto",
+      input: [
+        {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: prompt }],
+        },
+      ],
+      stream: false,
+    }),
+  }).then(async (resp) => {
+    const body = await resp.json().catch(() => null);
+    if (!resp.ok) {
+      throw new DashboardApiError(
+        body?.error?.message ?? `HTTP ${resp.status}: ${resp.statusText}`,
+        resp.status,
+        body?.error?.fields ?? [],
+      );
+    }
+    return {
+      ...(body as ProviderContinuationResponse),
+      dispatcher_provider: "codex",
+      dispatcher_model:
+        resp.headers.get("x-dispatcher-codex-model") ??
+        resp.headers.get("x-dispatcher-model"),
+    };
+  });
+}

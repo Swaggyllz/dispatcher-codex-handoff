@@ -1,6 +1,6 @@
 # Dispatcher 2.0 Project Manual
 
-Last updated: 2026-06-17
+Last updated: 2026-06-18
 
 ## Purpose
 
@@ -12,7 +12,7 @@ Dispatcher 2.0 is defined as:
 Codex Handoff Router
 ```
 
-The product goal is to help Codex users continue work after the native Codex route hits quota pressure or rate limits. The first milestone is not seamless migration. It is an honest emergency handoff:
+The product goal is to help Codex users continue work after the native Codex route hits quota pressure or rate limits. The first milestone was not seamless migration. It was an honest emergency handoff:
 
 ```text
 Codex native 429 / quota error
@@ -21,14 +21,20 @@ Codex native 429 / quota error
 -> show latest handoff in telemetry/dashboard
 ```
 
+The post-`v0.2.0` follow-up phase extends that foundation with planned handoff
+from reliable quota snapshots, explicitly configured background fallback
+continuation, streaming continuation persistence, and primary-route review.
+
 ## Non-Negotiable Scope Boundaries
 
 Do not drift from these boundaries unless the user explicitly changes direction.
 
 - Codex first. Do not implement Claude Code behavior in this milestone.
-- Emergency handoff first. Do not implement planned 10% handoff in this milestone.
+- Emergency handoff was first for `v0.2.0`. Planned handoff is now allowed only
+  from reliable upstream rate-limit header pairs.
 - No exact quota promise. Do not claim official "10% remaining" unless reliable upstream headers exist and are normalized.
-- No automatic fallback execution in this milestone.
+- No automatic fallback execution unless `DISPATCHER_HANDOFF_AUTO_CONTINUE=1`
+  is explicitly configured by the operator.
 - No hosted Responses tool emulation for third-party providers.
 - No hidden reasoning or context migration.
 - Fallback models are degraded execution workers, not Codex-native replacements.
@@ -149,11 +155,25 @@ Completed:
   - Web metadata now uses Dispatcher 2.0 / Codex Handoff Router and includes the app icon favicon in the Vite build output.
 - Release version alignment complete:
   - Workspace, root package, web package, Cargo.lock, CLI help, and CLI crate metadata now use `0.2.0` / Codex Handoff Router release positioning.
+- Post-`v0.2.0` follow-up implementation complete in the current workspace:
+  - Reliable rate-limit header pairs now persist quota snapshots and can create
+    planned handoff packages when normalized headroom is at or below
+    `DISPATCHER_PLANNED_HANDOFF_THRESHOLD` (default `0.10`).
+  - Emergency handoff behavior remains unchanged for 429 / `retry-after`.
+  - Background fallback continuation is off by default and only runs when
+    `DISPATCHER_HANDOFF_AUTO_CONTINUE=1`.
+  - Tagged streaming provider-auto continuations now persist terminal success
+    text or terminal failure state.
+  - The simple dashboard exposes saved fallback continuation state, source /
+    status, copy-review-prompt, and explicit "Review with Codex".
 
 Current milestone status:
 
 - First slice complete: native Codex quota/rate-limit emergency handoff package persistence and dashboard visibility.
 - Second slice complete: user-approved provider-auto continuation from the emergency handoff card.
+- Follow-up phases complete in local uncommitted changes: planned reliable
+  quota-snapshot handoff, opt-in background continuation, streaming
+  continuation persistence, and richer primary-route reclaim UI.
 - Release preparation started:
   - `docs/releases/v0.2.0-codex-handoff.md` drafts initial Dispatcher 2.0 release notes and PR summary.
   - README handoff documentation now describes emergency package visibility and explicit user-approved continuation.
@@ -164,17 +184,39 @@ Current milestone status:
   - New repository check passed: public repo, default branch `main`, README renders with Dispatcher 2.0 heading.
   - `v0.2.0` tag was created and pushed to `v2`.
   - GitHub Release `v0.2.0` was created on `Swaggyllz/dispatcher-codex-handoff`.
-- Verification status: full release readiness verification passed again after app-like dashboard, release metadata, and version alignment updates on 2026-06-17.
-- Still pending for future phases: planned handoff from reliable quota snapshots, automatic background fallback execution, streaming continuation persistence, and richer primary-route reclaim workflows.
+- Verification status: full release readiness verification passed again for the
+  post-`v0.2.0` follow-up changes on 2026-06-18. These changes were committed
+  locally as `feat: complete dispatcher 2.0 handoff follow-up`; no tag or push
+  has been performed.
+
+Current workspace checkpoint on 2026-06-18:
+
+- Branch is `main` tracking `v2/main`; it is one commit ahead of `v2/main`
+  with the local follow-up commit.
+- `origin` still points to the Dispatcher 1.0 repository:
+  `https://github.com/Swaggyllz/dispatcher.git`.
+- `v2` points to the Dispatcher 2.0 repository:
+  `https://github.com/Swaggyllz/dispatcher-codex-handoff.git`.
+- Do not push to `origin`. Use only `v2` as the Dispatcher 2.0 publication
+  target unless the user explicitly changes the release strategy.
+- Local service was not already running on `127.0.0.1:8787`; after starting
+  `cargo run -- serve --web-dir ./web/dist`, `/` and `/v1/health` returned
+  HTTP 200 and health returned `{"status":"ok","version":"0.2.0"}`. The
+  verification server was then stopped.
+- `docs/super-mode/super-mode-project-methodology.pdf` and its HTML source
+  exist as the generated Super Mode sharing artifact.
 
 ## Source Of Truth Documents
 
 Read these in order:
 
 1. `docs/dispatcher-2.0/PROJECT_MANUAL.md`
-2. `docs/dispatcher-2.0/00-pm-brief.md`
-3. `docs/dispatcher-2.0/06-cross-check-report.md`
-4. `docs/superpowers/plans/2026-06-16-codex-emergency-handoff.md`
+2. `docs/dispatcher-2.0/08-super-mode-handoff-2026-06-18.md`
+3. `docs/dispatcher-2.0/00-pm-brief.md`
+4. `docs/dispatcher-2.0/06-cross-check-report.md`
+5. `docs/dispatcher-2.0/07-multi-agent-pm-followup.md`
+6. `docs/superpowers/plans/2026-06-17-dispatcher-2-followup-phases.md`
+7. `docs/superpowers/plans/2026-06-16-codex-emergency-handoff.md`
 
 Use the implementation plan as the executable checklist. Use this manual as the project state tracker.
 
@@ -193,7 +235,7 @@ Existing Codex paths:
   - converts Responses input to internal `ModelRequest`
   - routes through configured providers.
 
-New 2.0 first-slice data path:
+2.0 emergency data path:
 
 ```text
 native Codex response status/headers
@@ -203,6 +245,19 @@ native Codex response status/headers
 -> handoff_packages row
 -> /v1/telemetry latest_handoff
 -> dashboard display
+```
+
+Post-`v0.2.0` planned / continuation data paths:
+
+```text
+native Codex reliable rate-limit headers
+-> quota_snapshots row
+-> threshold gate (DISPATCHER_PLANNED_HANDOFF_THRESHOLD, default 0.10)
+-> PlannedHandoffInput::build
+-> handoff_packages row
+-> optional background provider-auto continuation when DISPATCHER_HANDOFF_AUTO_CONTINUE=1
+-> handoff_continuations row with source/status
+-> simple dashboard saved continuation + explicit primary review
 ```
 
 ## Current Data Structures
@@ -216,16 +271,21 @@ native Codex response status/headers
 - `HandoffTechnicalContext`
 - `HandoffRoutingContext`
 - `EmergencyHandoffInput`
+- `QuotaSnapshot`
+- `PlannedHandoffInput`
 
 `crates/dispatcher-server/src/telemetry.rs` contains:
 
 - `QuotaEventRecord`
+- `QuotaSnapshotRecord`
 - `HandoffContinuationRecord`
 - `record_quota_event`
+- `record_quota_snapshot`
 - `record_handoff_package`
 - `record_handoff_continuation`
 - telemetry JSON fields:
   - `latest_quota_event`
+  - `latest_quota_snapshot`
   - `latest_handoff`
   - `latest_handoff_continuation`
 
@@ -234,13 +294,16 @@ native Codex response status/headers
 Immediate:
 
 - Do not push to `origin main`.
-- No immediate release task remains for `v0.2.0`.
-- If any code or release-configuration changes are made after `v0.2.0`, rerun the full verification matrix before publishing another tag.
+- The fresh full verification matrix has passed for the post-`v0.2.0`
+  follow-up changes. Rerun it if any code, docs, or release configuration
+  changes before commit or publication.
+- If publishing, use only the `v2` remote unless the user explicitly changes
+  the release strategy.
 
-Future planned phases:
+Completed post-`v0.2.0` follow-up phases in the current workspace:
 
-- Planned handoff from reliable quota snapshots. Header-derived normalized headroom is now recorded, but no planned handoff trigger has been implemented.
-- Automatic background fallback execution.
+- Planned handoff from reliable quota snapshots.
+- Explicitly configured background fallback execution.
 - Streaming continuation persistence.
 - Richer primary-route reclaim workflows.
 
@@ -257,7 +320,7 @@ pnpm --dir web typecheck
 pnpm --dir web build
 ```
 
-Latest final verification result after app-like dashboard and v0.2.0 release alignment updates on 2026-06-17:
+Latest final verification result after post-`v0.2.0` follow-up phases on 2026-06-18:
 
 - `./scripts/check-open-source-readiness.sh`: passed.
 - `cargo fmt --all --check`: passed.
@@ -267,6 +330,17 @@ Latest final verification result after app-like dashboard and v0.2.0 release ali
 - `pnpm --dir web format:check`: passed.
 - `pnpm --dir web typecheck`: passed.
 - `pnpm --dir web build`: passed.
+- `git diff --check`: passed.
+
+Targeted release-boundary review on 2026-06-18:
+
+- `DISPATCHER_HANDOFF_AUTO_CONTINUE=0` remains the example default.
+- Background continuation records `source = background_auto` only through
+  explicit truthy configuration.
+- Planned handoff still comes only from reliable upstream rate-limit header
+  pairs.
+- README / dashboard wording treats fallback output as degraded and does not
+  claim fallback equivalence to Codex-native execution.
 
 ## Subagent Management Rules
 
@@ -278,16 +352,17 @@ Use subagents, but keep them boxed in:
 - After each worker returns, inspect the diff before continuing.
 - If a worker adds Claude Code, planned 10%, automatic fallback execution, broad refactors, or unrelated UI, reject and correct it.
 
-## Product Acceptance Criteria For This Milestone
+## Product Acceptance Criteria For This Follow-up
 
 The milestone is done only when:
 
-- A simulated native Codex `429` can create a persisted emergency handoff package.
-- The package has `schema_version = dispatcher_handoff.v1`.
-- The package has `confidence = emergency_reconstruction`.
-- `/v1/telemetry` returns the latest handoff.
-- Dashboard shows the latest handoff clearly as emergency/degraded.
-- Existing Codex native routing behavior remains unchanged except for telemetry and diagnostic headers.
+- A simulated native Codex `429` can still create a persisted emergency handoff package.
+- Reliable native Codex rate-limit header pairs persist quota snapshots and can create a planned handoff package at the configured threshold.
+- `DISPATCHER_HANDOFF_AUTO_CONTINUE` is disabled by default and records `source = background_auto` only when explicitly enabled.
+- Tagged non-streaming and streaming provider-auto continuations persist terminal success/failure continuation telemetry.
+- `/v1/telemetry` returns `latest_quota_snapshot`, `latest_handoff`, and `latest_handoff_continuation`.
+- Dashboard shows planned/emergency handoff state, saved fallback continuation state, and explicit primary-route review actions without automatic provider switching.
+- Existing Codex native routing behavior remains unchanged except for telemetry, diagnostic headers, and opt-in background continuation.
 - Existing provider-auto behavior remains unchanged.
 
 ## Current User Intent

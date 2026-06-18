@@ -221,6 +221,14 @@ impl ResponsesStreamState {
         events
     }
 
+    pub fn response_text(&self) -> Option<String> {
+        self.text
+            .as_ref()
+            .map(|output| output.text.trim())
+            .filter(|text| !text.is_empty())
+            .map(ToOwned::to_owned)
+    }
+
     pub fn fail(&mut self, message: &str) -> ResponsesSseEvent {
         let mut response = self.response_snapshot("failed", Vec::new(), None);
         response["error"] = serde_json::json!({

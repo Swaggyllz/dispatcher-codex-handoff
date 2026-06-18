@@ -38,6 +38,17 @@ impl QuotaSignal {
 }
 
 fn normalized_rate_limit_headroom(headers: &HeaderMap) -> Option<f64> {
+    rate_limit_header_pairs()
+        .into_iter()
+        .filter_map(|(remaining_header, limit_header)| {
+            let remaining = header_f64(headers, remaining_header)?;
+            let limit = header_f64(headers, limit_header)?;
+            (limit > 0.0).then_some((remaining / limit).clamp(0.0, 1.0))
+        })
+        .min_by(|left, right| left.total_cmp(right))
+}
+
+fn rate_limit_header_pairs() -> [(&'static str, &'static str); 4] {
     [
         (
             "x-ratelimit-remaining-requests",
@@ -53,13 +64,6 @@ fn normalized_rate_limit_headroom(headers: &HeaderMap) -> Option<f64> {
             "x-ratelimit-limit-output-tokens",
         ),
     ]
-    .into_iter()
-    .filter_map(|(remaining_header, limit_header)| {
-        let remaining = header_f64(headers, remaining_header)?;
-        let limit = header_f64(headers, limit_header)?;
-        (limit > 0.0).then_some((remaining / limit).clamp(0.0, 1.0))
-    })
-    .min_by(|left, right| left.total_cmp(right))
 }
 
 fn header_f64(headers: &HeaderMap, name: &str) -> Option<f64> {
@@ -68,6 +72,64 @@ fn header_f64(headers: &HeaderMap, name: &str) -> Option<f64> {
         .and_then(|value| value.to_str().ok())
         .map(str::trim)
         .and_then(|value| value.parse::<f64>().ok())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct QuotaSnapshot {
+    pub provider_id: String,
+    pub model_id: String,
+    pub bucket: String,
+    pub limit: f64,
+    pub remaining: f64,
+    pub normalized_headroom: f64,
+    pub source: String,
+}
+
+pub fn quota_snapshots_from_headers(
+    headers: &HeaderMap,
+    provider_id: &str,
+    model_id: &str,
+) -> Vec<QuotaSnapshot> {
+    rate_limit_header_pairs()
+        .into_iter()
+        .filter_map(|(remaining_header, limit_header)| {
+            let remaining = header_f64(headers, remaining_header)?;
+            let limit = header_f64(headers, limit_header)?;
+            if limit <= 0.0 {
+                return None;
+            }
+            Some(QuotaSnapshot {
+                provider_id: provider_id.into(),
+                model_id: model_id.into(),
+                bucket: quota_bucket_name(remaining_header).into(),
+                limit,
+                remaining,
+                normalized_headroom: (remaining / limit).clamp(0.0, 1.0),
+                source: "rate_limit_headers".into(),
+            })
+        })
+        .collect()
+}
+
+fn quota_bucket_name(remaining_header: &str) -> &'static str {
+    match remaining_header {
+        "x-ratelimit-remaining-requests" => "requests",
+        "x-ratelimit-remaining-tokens" => "tokens",
+        "x-ratelimit-remaining-input-tokens" => "input_tokens",
+        "x-ratelimit-remaining-output-tokens" => "output_tokens",
+        _ => "unknown",
+    }
+}
+
+pub fn should_trigger_planned_handoff(
+    snapshots: &[QuotaSnapshot],
+    threshold: f64,
+    is_emergency: bool,
+) -> bool {
+    !is_emergency
+        && snapshots
+            .iter()
+            .any(|snapshot| snapshot.normalized_headroom <= threshold.clamp(0.0, 1.0))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -139,6 +201,95 @@ pub struct EmergencyHandoffInput {
     pub cwd: String,
     pub error_message: String,
     pub signal: QuotaSignal,
+}
+
+pub struct PlannedHandoffInput {
+    pub requested_model: String,
+    pub selected_model: String,
+    pub reasoning_effort: String,
+    pub speed: String,
+    pub agent_tier: String,
+    pub dispatcher_mode: String,
+    pub latest_user_request: String,
+    pub cwd: String,
+    pub normalized_headroom: f64,
+    pub threshold: f64,
+    pub source: String,
+}
+
+impl PlannedHandoffInput {
+    pub fn build(self) -> HandoffPackage {
+        let next_step = "Prepare a user-approved continuation before Codex quota pressure becomes an emergency.";
+        HandoffPackage {
+            schema_version: "dispatcher_handoff.v1".into(),
+            package_id: format!("handoff_{}", uuid::Uuid::new_v4().simple()),
+            created_at: Utc::now(),
+            trigger: "planned".into(),
+            confidence: "emergency_reconstruction".into(),
+            objective: "Continue the Codex task if observed quota pressure prevents native completion.".into(),
+            latest_user_request: self.latest_user_request.clone(),
+            current_status: "quota_pressure_observed".into(),
+            completion_criteria: vec![
+                "Use the primary Codex route while it remains available.".into(),
+                "Ask the user before continuing with a degraded fallback model.".into(),
+            ],
+            workspace: HandoffWorkspace {
+                cwd: self.cwd,
+                repo_name: None,
+                branch: None,
+                dirty_state: "unknown".into(),
+                touched_files: Vec::new(),
+                relevant_files: Vec::new(),
+            },
+            execution_state: HandoffExecutionState {
+                mode: "plan_only".into(),
+                last_successful_step: None,
+                next_recommended_step: next_step.into(),
+                blocked_on: None,
+                commands_run: Vec::new(),
+                verification_run: Vec::new(),
+            },
+            technical_context: HandoffTechnicalContext {
+                key_findings: vec![format!(
+                    "Observed normalized Codex headroom {:.1}% at or below configured threshold {:.1}% from {}.",
+                    self.normalized_headroom * 100.0,
+                    self.threshold * 100.0,
+                    self.source
+                )],
+                decisions_made: vec![
+                    "Created a planned handoff package from reliable observable quota headers.".into(),
+                ],
+                assumptions: vec![
+                    "Quota headroom is derived only from upstream rate-limit header pairs.".into(),
+                    "No hidden reasoning or private context is included in this package.".into(),
+                ],
+                constraints: vec![
+                    "Do not claim official quota balance.".into(),
+                    "Do not switch to fallback automatically without explicit operator configuration or user approval.".into(),
+                    "Do not emulate hosted Responses tools in fallback providers.".into(),
+                ],
+            },
+            routing_context: HandoffRoutingContext {
+                agent_tier: self.agent_tier,
+                requested_model: self.requested_model,
+                selected_model: self.selected_model,
+                reasoning_effort: self.reasoning_effort,
+                speed: self.speed,
+                dispatcher_mode: self.dispatcher_mode,
+            },
+            continuation_prompt: format!(
+                "You are continuing a Dispatcher Codex task under observed quota pressure.\n\nLatest user request:\n{}\n\nCurrent status:\nDispatcher observed normalized Codex headroom at {:.1}% from reliable rate-limit headers. This is not an official quota balance.\n\nDo next:\n1. {}\n2. Re-read relevant files before editing.\n3. Stay within the latest user request and project constraints.\n\nDo not:\n- Claim exact quota remaining.\n- Perform broad refactors.\n- Assume hidden context that is not written here.",
+                self.latest_user_request,
+                self.normalized_headroom * 100.0,
+                next_step
+            ),
+            hazards: vec![
+                "Fallback continuation may be lower fidelity than native Codex execution.".into(),
+                "Observed quota headers may describe a specific rate-limit bucket rather than total account balance.".into(),
+            ],
+            open_questions: Vec::new(),
+        }
+    }
 }
 
 impl EmergencyHandoffInput {
@@ -267,6 +418,63 @@ mod tests {
         assert!(!signal.is_emergency);
         assert_eq!(signal.normalized_headroom, None);
         assert_eq!(signal.source, "http_status");
+    }
+
+    #[test]
+    fn quota_snapshots_include_only_reliable_header_pairs() {
+        let mut headers = HeaderMap::new();
+        headers.insert("x-ratelimit-limit-requests", "100".parse().unwrap());
+        headers.insert("x-ratelimit-remaining-requests", "9".parse().unwrap());
+        headers.insert("x-ratelimit-remaining-tokens", "5".parse().unwrap());
+
+        let snapshots = quota_snapshots_from_headers(&headers, "codex", "gpt-5.5");
+
+        assert_eq!(snapshots.len(), 1);
+        assert_eq!(snapshots[0].provider_id, "codex");
+        assert_eq!(snapshots[0].model_id, "gpt-5.5");
+        assert_eq!(snapshots[0].bucket, "requests");
+        assert_eq!(snapshots[0].limit, 100.0);
+        assert_eq!(snapshots[0].remaining, 9.0);
+        assert_eq!(snapshots[0].normalized_headroom, 0.09);
+    }
+
+    #[test]
+    fn planned_handoff_triggers_only_from_reliable_low_headroom() {
+        let mut headers = HeaderMap::new();
+        headers.insert("x-ratelimit-limit-requests", "100".parse().unwrap());
+        headers.insert("x-ratelimit-remaining-requests", "10".parse().unwrap());
+        let snapshots = quota_snapshots_from_headers(&headers, "codex", "gpt-5.5");
+
+        assert!(should_trigger_planned_handoff(&snapshots, 0.10, false));
+        assert!(!should_trigger_planned_handoff(&snapshots, 0.10, true));
+        assert!(!should_trigger_planned_handoff(&[], 0.10, false));
+    }
+
+    #[test]
+    fn planned_package_is_observable_state_not_hidden_reasoning() {
+        let package = PlannedHandoffInput {
+            requested_model: "auto".into(),
+            selected_model: "gpt-5.5".into(),
+            reasoning_effort: "high".into(),
+            speed: "priority".into(),
+            agent_tier: "reasoning".into(),
+            dispatcher_mode: "auto".into(),
+            latest_user_request: "Finish the quota handoff feature.".into(),
+            cwd: "/workspace/dispatcher".into(),
+            normalized_headroom: 0.08,
+            threshold: 0.10,
+            source: "rate_limit_headers".into(),
+        }
+        .build();
+
+        assert_eq!(package.trigger, "planned");
+        assert_eq!(package.confidence, "emergency_reconstruction");
+        assert_eq!(package.execution_state.mode, "plan_only");
+        assert!(package
+            .technical_context
+            .constraints
+            .iter()
+            .any(|item| item.contains("Do not claim official quota balance")));
     }
 
     #[test]
