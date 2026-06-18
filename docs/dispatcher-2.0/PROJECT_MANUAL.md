@@ -228,8 +228,9 @@ Read these in order:
 3. `docs/dispatcher-2.0/00-pm-brief.md`
 4. `docs/dispatcher-2.0/06-cross-check-report.md`
 5. `docs/dispatcher-2.0/07-multi-agent-pm-followup.md`
-6. `docs/superpowers/plans/2026-06-17-dispatcher-2-followup-phases.md`
-7. `docs/superpowers/plans/2026-06-16-codex-emergency-handoff.md`
+6. `docs/dispatcher-2.0/09-project-strategy-and-roadmap-2026-06-18.md`
+7. `docs/superpowers/plans/2026-06-17-dispatcher-2-followup-phases.md`
+8. `docs/superpowers/plans/2026-06-16-codex-emergency-handoff.md`
 
 Use the implementation plan as the executable checklist. Use this manual as the project state tracker.
 
@@ -314,8 +315,13 @@ Immediate:
 - Rerun the full verification matrix if any code, docs, or release
   configuration changes before the next commit or publication.
 - Next product planning should start as a separate post-`v0.2.1` scope. The
-  likely `v0.3.0` track is provider/model expansion and Codex-compatible
-  routing policy, not part of the `v0.2.1` follow-up release.
+  likely `v0.3.0` track is fallback worker certification for Codex handoff,
+  not provider expansion as an end in itself and not part of the `v0.2.1`
+  follow-up release.
+- Strategic direction after `v0.2.1` is recorded in
+  `docs/dispatcher-2.0/09-project-strategy-and-roadmap-2026-06-18.md`.
+  The key decision is that `v0.3.0` should be a fallback worker certification
+  layer for Dispatcher 2.0, not a pivot to a generic model switcher.
 
 Completed post-`v0.2.0` follow-up phases in the current workspace:
 
