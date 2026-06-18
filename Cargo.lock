@@ -371,7 +371,7 @@ dependencies = [
 
 [[package]]
 name = "dispatcher-cli"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -389,7 +389,7 @@ dependencies = [
 
 [[package]]
 name = "dispatcher-engine"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -407,7 +407,7 @@ dependencies = [
 
 [[package]]
 name = "dispatcher-providers"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -428,7 +428,7 @@ dependencies = [
 
 [[package]]
 name = "dispatcher-server"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "anyhow",
  "async-trait",
