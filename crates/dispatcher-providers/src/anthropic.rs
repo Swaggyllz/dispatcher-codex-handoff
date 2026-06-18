@@ -31,6 +31,7 @@ impl AnthropicProvider {
                     max_tokens: 200_000,
                     quality_score: 0.93,
                     avg_latency_ms: 2000,
+                    handoff_certification: HandoffCertification::default(),
                 },
                 ModelInfo {
                     model_id: "claude-haiku-4-5".into(),
@@ -45,6 +46,7 @@ impl AnthropicProvider {
                     max_tokens: 200_000,
                     quality_score: 0.82,
                     avg_latency_ms: 600,
+                    handoff_certification: HandoffCertification::default(),
                 },
                 ModelInfo {
                     model_id: "claude-opus-4-7".into(),
@@ -59,6 +61,7 @@ impl AnthropicProvider {
                     max_tokens: 200_000,
                     quality_score: 0.96,
                     avg_latency_ms: 4000,
+                    handoff_certification: HandoffCertification::default(),
                 },
             ],
             base_url: "https://api.anthropic.com".into(),

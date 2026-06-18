@@ -1,5 +1,6 @@
 pub mod analyzer;
 pub mod circuit_breaker;
+pub mod handoff_certification;
 pub mod scorer;
 pub mod selector;
 pub mod types;
@@ -10,6 +11,7 @@ use tokio::sync::RwLock;
 
 pub use analyzer::RequestAnalyzer;
 pub use circuit_breaker::{CircuitBreaker, CircuitBreakerSnapshot, CircuitBreakerState};
+pub use handoff_certification::*;
 pub use scorer::ProviderScorer;
 pub use selector::RouteSelector;
 pub use types::*;
@@ -92,6 +94,7 @@ mod tests {
                 max_tokens: max_context_length as u32,
                 quality_score,
                 avg_latency_ms: 1000,
+                handoff_certification: HandoffCertification::default(),
             }],
             base_url: String::new(),
             requires_api_key: true,
@@ -201,6 +204,7 @@ mod tests {
             max_tokens: 128_000,
             quality_score: 0.7,
             avg_latency_ms: 1000,
+            handoff_certification: HandoffCertification::default(),
         });
 
         let engine = RoutingEngine::new(RoutingConfig::default());

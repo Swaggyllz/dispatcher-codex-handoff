@@ -561,7 +561,8 @@ pub fn routes() -> Router<Arc<AppState>> {
 mod tests {
     use super::*;
     use dispatcher_engine::{
-        AgentTier, AvailabilityStatus, ProviderScore, RouteAttempt, RoutingStrategy, ScoreBreakdown,
+        AgentTier, AvailabilityStatus, HandoffCertification, ProviderScore, RouteAttempt,
+        RoutingStrategy, ScoreBreakdown,
     };
 
     fn decision_with_cost_per_1k(estimated_cost_per_1k: f64) -> RoutingDecision {
@@ -584,6 +585,7 @@ mod tests {
                 avg_latency_ms: 500,
                 availability: AvailabilityStatus::Available,
                 policy_reason: None,
+                handoff_certification: HandoffCertification::default(),
                 score_breakdown: ScoreBreakdown {
                     weighted_quality: 0.4,
                     weighted_cost: 0.2,

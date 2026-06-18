@@ -30,6 +30,7 @@ impl SiliconFlowProvider {
                     max_tokens: 131072,
                     quality_score: 0.91,
                     avg_latency_ms: 3000,
+                    handoff_certification: HandoffCertification::default(),
                 },
                 ModelInfo {
                     model_id: "Qwen/Qwen3-32B".into(),
@@ -44,6 +45,7 @@ impl SiliconFlowProvider {
                     max_tokens: 131072,
                     quality_score: 0.87,
                     avg_latency_ms: 1500,
+                    handoff_certification: HandoffCertification::default(),
                 },
                 ModelInfo {
                     model_id: "Qwen/Qwen3-14B".into(),
@@ -58,6 +60,7 @@ impl SiliconFlowProvider {
                     max_tokens: 131072,
                     quality_score: 0.82,
                     avg_latency_ms: 800,
+                    handoff_certification: HandoffCertification::default(),
                 },
                 ModelInfo {
                     model_id: "Qwen/Qwen3-8B".into(),
@@ -72,6 +75,7 @@ impl SiliconFlowProvider {
                     max_tokens: 131072,
                     quality_score: 0.72,
                     avg_latency_ms: 500,
+                    handoff_certification: HandoffCertification::default(),
                 },
                 ModelInfo {
                     model_id: "Qwen/Qwen3-Coder-30B-A3B-Instruct".into(),
@@ -86,6 +90,7 @@ impl SiliconFlowProvider {
                     max_tokens: 131072,
                     quality_score: 0.86,
                     avg_latency_ms: 1200,
+                    handoff_certification: HandoffCertification::default(),
                 },
                 ModelInfo {
                     model_id: "Qwen/Qwen2.5-72B-Instruct".into(),
@@ -100,6 +105,7 @@ impl SiliconFlowProvider {
                     max_tokens: 32768,
                     quality_score: 0.83,
                     avg_latency_ms: 1200,
+                    handoff_certification: HandoffCertification::default(),
                 },
                 ModelInfo {
                     model_id: "Qwen/Qwen2.5-32B-Instruct".into(),
@@ -114,6 +120,7 @@ impl SiliconFlowProvider {
                     max_tokens: 32768,
                     quality_score: 0.80,
                     avg_latency_ms: 900,
+                    handoff_certification: HandoffCertification::default(),
                 },
                 ModelInfo {
                     model_id: "Qwen/Qwen2.5-14B-Instruct".into(),
@@ -128,6 +135,7 @@ impl SiliconFlowProvider {
                     max_tokens: 32768,
                     quality_score: 0.76,
                     avg_latency_ms: 600,
+                    handoff_certification: HandoffCertification::default(),
                 },
                 ModelInfo {
                     model_id: "Qwen/Qwen2.5-7B-Instruct".into(),
@@ -142,6 +150,7 @@ impl SiliconFlowProvider {
                     max_tokens: 32768,
                     quality_score: 0.65,
                     avg_latency_ms: 400,
+                    handoff_certification: HandoffCertification::default(),
                 },
                 // DeepSeek 系列
                 ModelInfo {
@@ -157,6 +166,7 @@ impl SiliconFlowProvider {
                     max_tokens: 65536,
                     quality_score: 0.90,
                     avg_latency_ms: 2000,
+                    handoff_certification: HandoffCertification::default(),
                 },
                 ModelInfo {
                     model_id: "Pro/deepseek-ai/DeepSeek-V3.1-Terminus".into(),
@@ -171,6 +181,7 @@ impl SiliconFlowProvider {
                     max_tokens: 65536,
                     quality_score: 0.89,
                     avg_latency_ms: 1800,
+                    handoff_certification: HandoffCertification::default(),
                 },
                 ModelInfo {
                     model_id: "Pro/deepseek-ai/DeepSeek-V3".into(),
@@ -185,6 +196,7 @@ impl SiliconFlowProvider {
                     max_tokens: 65536,
                     quality_score: 0.88,
                     avg_latency_ms: 2000,
+                    handoff_certification: HandoffCertification::default(),
                 },
                 ModelInfo {
                     model_id: "Pro/deepseek-ai/DeepSeek-R1".into(),
@@ -199,6 +211,7 @@ impl SiliconFlowProvider {
                     max_tokens: 65536,
                     quality_score: 0.92,
                     avg_latency_ms: 4000,
+                    handoff_certification: HandoffCertification::default(),
                 },
                 // Kimi 系列
                 ModelInfo {
@@ -214,6 +227,7 @@ impl SiliconFlowProvider {
                     max_tokens: 131072,
                     quality_score: 0.89,
                     avg_latency_ms: 1800,
+                    handoff_certification: HandoffCertification::default(),
                 },
                 ModelInfo {
                     model_id: "Pro/moonshotai/Kimi-K2.5".into(),
@@ -228,6 +242,7 @@ impl SiliconFlowProvider {
                     max_tokens: 131072,
                     quality_score: 0.87,
                     avg_latency_ms: 1800,
+                    handoff_certification: HandoffCertification::default(),
                 },
                 // GLM 系列
                 ModelInfo {
@@ -243,6 +258,7 @@ impl SiliconFlowProvider {
                     max_tokens: 131072,
                     quality_score: 0.90,
                     avg_latency_ms: 2000,
+                    handoff_certification: HandoffCertification::default(),
                 },
                 ModelInfo {
                     model_id: "Pro/zai-org/GLM-5".into(),
@@ -257,6 +273,7 @@ impl SiliconFlowProvider {
                     max_tokens: 131072,
                     quality_score: 0.88,
                     avg_latency_ms: 2000,
+                    handoff_certification: HandoffCertification::default(),
                 },
                 ModelInfo {
                     model_id: "Pro/zai-org/GLM-4.7".into(),
@@ -271,6 +288,7 @@ impl SiliconFlowProvider {
                     max_tokens: 131072,
                     quality_score: 0.86,
                     avg_latency_ms: 1800,
+                    handoff_certification: HandoffCertification::default(),
                 },
                 // MiniMax
                 ModelInfo {
@@ -286,6 +304,7 @@ impl SiliconFlowProvider {
                     max_tokens: 131072,
                     quality_score: 0.84,
                     avg_latency_ms: 1200,
+                    handoff_certification: HandoffCertification::default(),
                 },
                 // ByteDance
                 ModelInfo {
@@ -301,6 +320,7 @@ impl SiliconFlowProvider {
                     max_tokens: 131072,
                     quality_score: 0.85,
                     avg_latency_ms: 1500,
+                    handoff_certification: HandoffCertification::default(),
                 },
             ],
             base_url: "https://api.siliconflow.cn".into(),

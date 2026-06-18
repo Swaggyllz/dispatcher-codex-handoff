@@ -480,6 +480,22 @@ function PersistedContinuationResult({
           value={formatHandoffValue(continuation.status)}
         />
         <RouteProperty
+          label={t("dashboard.workerCertification")}
+          value={
+            continuation.certification_labels.length > 0
+              ? continuation.certification_labels
+                  .map(formatHandoffValue)
+                  .join(", ")
+              : t("dashboard.notAvailable")
+          }
+        />
+        {continuation.eligibility_reason && (
+          <RouteProperty
+            label={t("dashboard.eligibilityReason")}
+            value={continuation.eligibility_reason}
+          />
+        )}
+        <RouteProperty
           label={t("dashboard.observedLatency")}
           value={`${continuation.latency_ms}ms`}
         />

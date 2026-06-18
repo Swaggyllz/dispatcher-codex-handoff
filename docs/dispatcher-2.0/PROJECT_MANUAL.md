@@ -178,6 +178,20 @@ Current milestone status:
 - Follow-up phases complete and published as `v0.2.1`: planned reliable
   quota-snapshot handoff, opt-in background continuation, streaming
   continuation persistence, and richer primary-route reclaim UI.
+- Local `v0.3.0` fallback worker certification implementation is complete in
+  the current workspace:
+  - Model-level `handoff_certification` profiles have been added to provider
+    model metadata and `/v1/providers`.
+  - Built-in handoff eval fixtures define text-only, code-patch, tool-capable,
+    and long-context certification labels.
+  - Tagged `provider-auto` handoff continuations now filter candidates by
+    certification; ordinary untagged `provider-auto` routing remains unchanged.
+  - Handoff continuation telemetry records selected certification labels and
+    eligibility reason.
+  - Dashboard surfaces certified worker count and saved continuation
+    certification state.
+  - Version metadata has been prepared as `0.3.0`.
+  - This is local preparation only. It has not been pushed, tagged, or released.
 - Release publication:
   - `docs/releases/v0.2.0-codex-handoff.md` drafts initial Dispatcher 2.0 release notes and PR summary.
   - `docs/releases/v0.2.1-codex-handoff-followup.md` records the follow-up
@@ -318,6 +332,27 @@ Immediate:
   likely `v0.3.0` track is fallback worker certification for Codex handoff,
   not provider expansion as an end in itself and not part of the `v0.2.1`
   follow-up release.
+- Current `v0.3.0` implementation target:
+  - Keep Dispatcher 2.0 positioned as Codex Handoff Router.
+  - Certify fallback workers at model level.
+  - Apply eligibility filtering only to tagged handoff continuation.
+  - Keep generic `provider-auto` routing available outside handoff.
+  - Do not claim fallback models are equivalent to native Codex.
+- Latest local `v0.3.0` verification result on 2026-06-18:
+  - `./scripts/check-open-source-readiness.sh`: passed.
+  - `cargo fmt --all --check`: passed.
+  - `cargo clippy --workspace --all-targets -- -D warnings`: passed.
+  - `cargo test --workspace`: passed.
+  - `cargo check --workspace`: passed.
+  - `pnpm --dir web format:check`: passed.
+  - `pnpm --dir web typecheck`: passed.
+  - `pnpm --dir web build`: passed.
+  - `git diff --check`: passed.
+  - Service smoke check: `/v1/health` returned HTTP 200 with
+    `{"status":"ok","version":"0.3.0"}` and `/v1/providers` exposed
+    `handoff_certification` for provider models.
+  - Temporary verification server was stopped and no listener remained on
+    `127.0.0.1:8787`.
 - Strategic direction after `v0.2.1` is recorded in
   `docs/dispatcher-2.0/09-project-strategy-and-roadmap-2026-06-18.md`.
   The key decision is that `v0.3.0` should be a fallback worker certification

@@ -29,6 +29,7 @@ impl GeminiProvider {
                     max_tokens: 1_048_576,
                     quality_score: 0.85,
                     avg_latency_ms: 500,
+                    handoff_certification: HandoffCertification::default(),
                 },
                 ModelInfo {
                     model_id: "gemini-2.5-pro".into(),
@@ -43,6 +44,7 @@ impl GeminiProvider {
                     max_tokens: 1_048_576,
                     quality_score: 0.91,
                     avg_latency_ms: 1500,
+                    handoff_certification: HandoffCertification::default(),
                 },
             ],
             base_url: "https://generativelanguage.googleapis.com".into(),

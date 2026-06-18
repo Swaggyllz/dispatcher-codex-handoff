@@ -347,6 +347,7 @@ mod tests {
             avg_latency_ms: 1000,
             availability: AvailabilityStatus::Available,
             policy_reason: None,
+            handoff_certification: HandoffCertification::default(),
             score_breakdown: ScoreBreakdown {
                 weighted_quality: total,
                 weighted_cost: 0.0,

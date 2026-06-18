@@ -10,7 +10,9 @@ use axum::{
     Json, Router,
 };
 use dispatcher_engine::types::*;
-use dispatcher_engine::RequestAnalyzer;
+use dispatcher_engine::{
+    filter_handoff_eligible_capabilities, handoff_label_name, RequestAnalyzer,
+};
 use dispatcher_providers::http_client::build_client;
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
@@ -822,12 +824,25 @@ async fn provider_responses(
     let handoff_continuation_source = handoff_continuation_source(&request);
     model_request.model = "auto".into();
     let capabilities = state.registry.capabilities().to_vec();
+    let (capabilities, handoff_exclusions, handoff_eligibility_reason) = if handoff_package_id
+        .is_some()
+    {
+        let features = RequestAnalyzer::analyze(&model_request);
+        let (eligible, excluded) = filter_handoff_eligible_capabilities(&capabilities, &features);
+        (
+            eligible,
+            excluded,
+            Some("selected from certified fallback workers".to_string()),
+        )
+    } else {
+        (capabilities, Vec::new(), None)
+    };
     let provider_health = state
         .telemetry
         .get_provider_health()
         .await
         .unwrap_or_default();
-    let Some(decision) = state
+    let Some(mut decision) = state
         .engine
         .route_with_health(
             &model_request,
@@ -843,20 +858,34 @@ async fn provider_responses(
             handoff_continuation_source,
             StatusCode::SERVICE_UNAVAILABLE,
             started_at.elapsed().as_millis() as u64,
-            "No provider supports this Responses request",
+            if handoff_package_id.is_some() {
+                "No certified fallback worker supports this handoff continuation"
+            } else {
+                "No provider supports this Responses request"
+            },
+            if handoff_package_id.is_some() {
+                Some("no certified fallback worker supports this handoff continuation")
+            } else {
+                None
+            },
         )
         .await;
         return (
             StatusCode::SERVICE_UNAVAILABLE,
             Json(serde_json::json!({
                 "error": {
-                    "message": "No provider supports this Responses request",
+                    "message": if handoff_package_id.is_some() {
+                        "No certified fallback worker supports this handoff continuation"
+                    } else {
+                        "No provider supports this Responses request"
+                    },
                     "type": "no_provider_available"
                 }
             })),
         )
             .into_response();
     };
+    decision.excluded_candidates.extend(handoff_exclusions);
 
     tracing::info!(
         "Provider Responses route: {} -> {} via {} tier={:?} (stream={})",
@@ -874,6 +903,7 @@ async fn provider_responses(
             decision,
             handoff_package_id,
             handoff_continuation_source,
+            handoff_eligibility_reason,
         )
         .await
     } else {
@@ -883,6 +913,7 @@ async fn provider_responses(
             decision,
             handoff_package_id,
             handoff_continuation_source,
+            handoff_eligibility_reason,
         )
         .await
     }
@@ -911,6 +942,7 @@ async fn provider_non_stream_responses(
     decision: RoutingDecision,
     handoff_package_id: Option<String>,
     handoff_continuation_source: &'static str,
+    handoff_eligibility_reason: Option<String>,
 ) -> axum::response::Response {
     let started_at = Instant::now();
     let mut fallback_chain = Vec::new();
@@ -949,6 +981,7 @@ async fn provider_non_stream_responses(
                         latency_ms: response.latency_ms,
                         response_text: provider_response_text(&response),
                         error_message: None,
+                        eligibility_reason: handoff_eligibility_reason.as_deref(),
                     },
                 )
                 .await;
@@ -992,6 +1025,7 @@ async fn provider_non_stream_responses(
             latency_ms: started_at.elapsed().as_millis() as u64,
             response_text: None,
             error_message: Some("All compatible providers failed".into()),
+            eligibility_reason: handoff_eligibility_reason.as_deref(),
         },
     )
     .await;
@@ -1015,6 +1049,7 @@ async fn provider_stream_responses(
     decision: RoutingDecision,
     handoff_package_id: Option<String>,
     handoff_continuation_source: &'static str,
+    handoff_eligibility_reason: Option<String>,
 ) -> axum::response::Response {
     let mut fallback_chain = Vec::new();
     for mut attempt in provider_attempts(&state, &decision) {
@@ -1041,6 +1076,7 @@ async fn provider_stream_responses(
                     attempt,
                     handoff_package_id,
                     handoff_continuation_source,
+                    handoff_eligibility_reason,
                 );
             }
             Err(error) => {
@@ -1077,6 +1113,7 @@ async fn provider_stream_responses(
             latency_ms: 0,
             response_text: None,
             error_message: Some("All compatible providers failed before streaming".into()),
+            eligibility_reason: handoff_eligibility_reason.as_deref(),
         },
     )
     .await;
@@ -1103,6 +1140,7 @@ struct ProviderSseRuntime {
     decision: RoutingDecision,
     handoff_package_id: Option<String>,
     handoff_continuation_source: &'static str,
+    handoff_eligibility_reason: Option<String>,
     started_at: Instant,
     finished: bool,
 }
@@ -1113,6 +1151,7 @@ fn provider_sse_response(
     decision: RoutingDecision,
     handoff_package_id: Option<String>,
     handoff_continuation_source: &'static str,
+    handoff_eligibility_reason: Option<String>,
 ) -> axum::response::Response {
     let mut converter = ResponsesStreamState::new(decision.model_id.clone());
     let pending = converter.start().into();
@@ -1125,6 +1164,7 @@ fn provider_sse_response(
         decision: decision.clone(),
         handoff_package_id,
         handoff_continuation_source,
+        handoff_eligibility_reason,
         started_at: Instant::now(),
         finished: false,
     };
@@ -1179,6 +1219,7 @@ fn provider_sse_response(
                             latency_ms: runtime.started_at.elapsed().as_millis() as u64,
                             response_text: None,
                             error_message: Some(error.to_string()),
+                            eligibility_reason: runtime.handoff_eligibility_reason.as_deref(),
                         },
                     )
                     .await;
@@ -1228,6 +1269,7 @@ fn provider_sse_response(
                             latency_ms: response.latency_ms,
                             response_text,
                             error_message: None,
+                            eligibility_reason: runtime.handoff_eligibility_reason.as_deref(),
                         },
                     )
                     .await;
@@ -1317,6 +1359,7 @@ struct ProviderHandoffContinuation<'a> {
     latency_ms: u64,
     response_text: Option<String>,
     error_message: Option<String>,
+    eligibility_reason: Option<&'a str>,
 }
 
 async fn record_handoff_continuation(
@@ -1346,6 +1389,8 @@ async fn record_handoff_continuation(
             } else {
                 "failed".into()
             },
+            certification_labels: selected_handoff_certification_labels(continuation.decision),
+            eligibility_reason: continuation.eligibility_reason.map(Into::into),
         })
         .await;
 }
@@ -1357,6 +1402,7 @@ async fn record_unavailable_handoff_continuation(
     status_code: StatusCode,
     latency_ms: u64,
     error_message: &str,
+    eligibility_reason: Option<&str>,
 ) {
     let Some(package_id) = package_id else {
         return;
@@ -1377,8 +1423,28 @@ async fn record_unavailable_handoff_continuation(
             error_message: Some(error_message.into()),
             source: source.into(),
             status: "failed".into(),
+            certification_labels: Vec::new(),
+            eligibility_reason: eligibility_reason.map(Into::into),
         })
         .await;
+}
+
+fn selected_handoff_certification_labels(decision: &RoutingDecision) -> Vec<String> {
+    decision
+        .candidates
+        .iter()
+        .find(|candidate| {
+            candidate.provider_id == decision.provider_id && candidate.model_id == decision.model_id
+        })
+        .map(|candidate| {
+            candidate
+                .handoff_certification
+                .labels
+                .iter()
+                .map(|label| handoff_label_name(*label).into())
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 async fn record_codex_quota_and_handoff_with_threshold(
@@ -1790,6 +1856,100 @@ mod tests {
         capability: ProviderCapability,
     }
 
+    struct TextProvider {
+        capability: ProviderCapability,
+    }
+
+    impl TextProvider {
+        fn new(
+            provider_id: &str,
+            model_id: &str,
+            handoff_certification: HandoffCertification,
+        ) -> Self {
+            Self {
+                capability: ProviderCapability {
+                    provider_id: provider_id.into(),
+                    provider_name: provider_id.into(),
+                    supported_models: vec![ModelInfo {
+                        model_id: model_id.into(),
+                        display_name: model_id.into(),
+                        input_cost_per_1k: 0.0,
+                        output_cost_per_1k: 0.0,
+                        pricing_source: None,
+                        pricing_updated_at: None,
+                        supports_streaming: Some(false),
+                        supports_tools: Some(false),
+                        supports_vision: Some(false),
+                        max_tokens: 8192,
+                        quality_score: 0.72,
+                        avg_latency_ms: 10,
+                        handoff_certification,
+                    }],
+                    base_url: "local://text-test".into(),
+                    requires_api_key: false,
+                    supports_streaming: false,
+                    supports_tools: false,
+                    supports_vision: false,
+                    max_context_length: 8192,
+                },
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl Provider for TextProvider {
+        fn provider_id(&self) -> &str {
+            &self.capability.provider_id
+        }
+
+        fn capability(&self) -> &ProviderCapability {
+            &self.capability
+        }
+
+        async fn health_check(&self) -> Result<bool, ProviderError> {
+            Ok(true)
+        }
+
+        async fn chat_completion(
+            &self,
+            _request: &ModelRequest,
+            model_id: &str,
+        ) -> Result<ChatCompletionResponse, ProviderError> {
+            Ok(ChatCompletionResponse {
+                id: uuid::Uuid::new_v4().to_string(),
+                model: model_id.into(),
+                provider: self.provider_id().into(),
+                choices: vec![Choice {
+                    index: 0,
+                    message: ResponseMessage {
+                        role: "assistant".into(),
+                        content: "text provider response".into(),
+                        tool_calls: None,
+                    },
+                    finish_reason: Some("stop".into()),
+                }],
+                usage: Usage {
+                    prompt_tokens: 10,
+                    completion_tokens: 5,
+                    total_tokens: 15,
+                },
+                finish_reason: Some("stop".into()),
+                latency_ms: 10,
+            })
+        }
+
+        async fn chat_completion_stream(
+            &self,
+            _request: &ModelRequest,
+            _model_id: &str,
+        ) -> Result<
+            Box<dyn futures::Stream<Item = Result<StreamChunk, ProviderError>> + Send + Unpin>,
+            ProviderError,
+        > {
+            Err(ProviderError::Other("streaming unsupported".into()))
+        }
+    }
+
     impl ToolStreamProvider {
         fn new() -> Self {
             Self {
@@ -1809,6 +1969,7 @@ mod tests {
                         max_tokens: 8192,
                         quality_score: 0.8,
                         avg_latency_ms: 1,
+                        handoff_certification: HandoffCertification::default(),
                     }],
                     base_url: "local://tool-test".into(),
                     requires_api_key: false,
@@ -2264,6 +2425,32 @@ mod tests {
         (state, path)
     }
 
+    async fn text_provider_test_state(
+        handoff_certification: HandoffCertification,
+    ) -> (Arc<AppState>, std::path::PathBuf) {
+        let mut registry = ProviderRegistry::new();
+        registry.register(Arc::new(TextProvider::new(
+            "text-test",
+            "text-test-model",
+            handoff_certification,
+        )));
+        let path = std::env::temp_dir().join(format!(
+            "dispatcher-text-provider-responses-{}.db",
+            uuid::Uuid::new_v4()
+        ));
+        let config = RoutingConfig::default();
+        let state = Arc::new(AppState {
+            engine: RoutingEngine::new(config.clone()),
+            registry,
+            telemetry: crate::telemetry::TelemetryStore::new(path.to_string_lossy().as_ref())
+                .await
+                .unwrap(),
+            routing_config: config,
+            policy_config_path: None,
+        });
+        (state, path)
+    }
+
     #[tokio::test]
     async fn provider_auto_non_stream_routes_to_demo_as_responses_json() {
         let (state, path) = provider_test_state().await;
@@ -2383,6 +2570,48 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn provider_auto_handoff_requires_certified_worker() {
+        let (state, path) = text_provider_test_state(HandoffCertification::default()).await;
+        let mut request = route_request("Summarize this handoff package.");
+        request.stream = false;
+        request.extra.insert(
+            "handoff_package_id".into(),
+            serde_json::json!("pkg_uncertified"),
+        );
+        let model_request = responses_to_model_request(&request);
+
+        let response = provider_responses(state.clone(), request, model_request).await;
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let stats = state.telemetry.get_stats().await.unwrap();
+        let continuation = &stats["latest_handoff_continuation"];
+        assert_eq!(continuation["package_id"], "pkg_uncertified");
+        assert_eq!(continuation["provider_id"], "unavailable");
+        assert_eq!(
+            continuation["eligibility_reason"],
+            "no certified fallback worker supports this handoff continuation"
+        );
+
+        drop(state);
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[tokio::test]
+    async fn provider_auto_without_handoff_package_keeps_generic_routing() {
+        let (state, path) = text_provider_test_state(HandoffCertification::default()).await;
+        let mut request = route_request("hello generic provider-auto");
+        request.stream = false;
+        let model_request = responses_to_model_request(&request);
+
+        let response = provider_responses(state.clone(), request, model_request).await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        drop(state);
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[tokio::test]
     async fn provider_auto_records_tagged_continuation_failure_when_no_provider_matches() {
         let (state, path) = empty_provider_test_state().await;
         let mut request = route_request("hello unavailable handoff continuation");
@@ -2442,7 +2671,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn background_handoff_continuation_records_background_source() {
+    async fn background_handoff_continuation_records_background_source_when_uncertified() {
         let (state, path) = provider_test_state().await;
         let package = crate::handoff::PlannedHandoffInput {
             requested_model: "dispatcher-auto".into(),
@@ -2465,8 +2694,12 @@ mod tests {
         let continuation = &stats["latest_handoff_continuation"];
         assert_eq!(continuation["package_id"], package.package_id);
         assert_eq!(continuation["source"], "background_auto");
-        assert_eq!(continuation["status"], "succeeded");
-        assert_eq!(continuation["provider_id"], "demo");
+        assert_eq!(continuation["status"], "failed");
+        assert_eq!(continuation["provider_id"], "unavailable");
+        assert_eq!(
+            continuation["eligibility_reason"],
+            "no certified fallback worker supports this handoff continuation"
+        );
 
         drop(state);
         std::fs::remove_file(path).unwrap();

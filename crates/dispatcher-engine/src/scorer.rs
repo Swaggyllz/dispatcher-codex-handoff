@@ -93,6 +93,7 @@ impl ProviderScorer {
                         avg_latency_ms,
                         availability,
                         policy_reason: policy_effect.reason,
+                        handoff_certification: model.handoff_certification.clone(),
                         score_breakdown: ScoreBreakdown {
                             weighted_quality: 0.0,
                             weighted_cost: 0.0,
@@ -371,6 +372,7 @@ mod tests {
                 max_tokens: 4096,
                 quality_score: quality,
                 avg_latency_ms: latency,
+                handoff_certification: HandoffCertification::default(),
             }],
             base_url: String::new(),
             requires_api_key: true,

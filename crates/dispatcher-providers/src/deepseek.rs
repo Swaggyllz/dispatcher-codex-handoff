@@ -57,6 +57,7 @@ impl DeepSeekProvider {
                     max_tokens: 65536,
                     quality_score: 0.92,
                     avg_latency_ms: 4000,
+                    handoff_certification: HandoffCertification::default(),
                 },
                 ModelInfo {
                     model_id: "deepseek-v4-flash".into(),
@@ -71,6 +72,7 @@ impl DeepSeekProvider {
                     max_tokens: 65536,
                     quality_score: 0.88,
                     avg_latency_ms: 1500,
+                    handoff_certification: HandoffCertification::default(),
                 },
             ],
             base_url: "https://api.deepseek.com".into(),

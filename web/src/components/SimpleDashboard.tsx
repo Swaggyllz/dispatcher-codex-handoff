@@ -114,6 +114,13 @@ export function SimpleDashboard({
           : activeProviders > 0
             ? t("dashboard.simpleProviderSomeNeedReview")
             : t("dashboard.simpleProviderAllNeedReview");
+  const certifiedWorkerCount = providers
+    .flatMap((provider) => provider.models)
+    .filter((model) =>
+      model.handoff_certification.labels.some(
+        (label) => label !== "not_certified",
+      ),
+    ).length;
   const formattedTime = new Intl.DateTimeFormat(
     i18n.language.startsWith("zh") ? "zh-CN" : "en",
     {
@@ -337,9 +344,13 @@ export function SimpleDashboard({
 
         <div className="simple-signal-row">
           <SimpleSignal
-            label={t("dashboard.simpleProviders")}
-            value={`${activeProviders}/${providers.length || 0}`}
-            detail={providerDetail}
+            label={t("dashboard.certifiedWorkers")}
+            value={`${certifiedWorkerCount}`}
+            detail={
+              certifiedWorkerCount > 0
+                ? t("dashboard.certifiedWorkersDetail")
+                : providerDetail
+            }
           />
           <SimpleSignal
             label={t("dashboard.simpleLatestModel")}
@@ -499,6 +510,12 @@ function SimplePersistedContinuation({
         <code>{continuation.model_id}</code>
         <code>{formatHandoffValue(continuation.source)}</code>
         <code>{formatHandoffValue(continuation.status)}</code>
+        {continuation.certification_labels.map((label) => (
+          <code key={label}>{formatHandoffValue(label)}</code>
+        ))}
+        {continuation.eligibility_reason && (
+          <code>{continuation.eligibility_reason}</code>
+        )}
       </div>
       {continuation.success && (
         <div className="simple-result-actions">

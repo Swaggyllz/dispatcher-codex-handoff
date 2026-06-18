@@ -30,6 +30,7 @@ impl OpenAIProvider {
                     max_tokens: 128_000,
                     quality_score: 0.92,
                     avg_latency_ms: 1500,
+                    handoff_certification: HandoffCertification::default(),
                 },
                 ModelInfo {
                     model_id: "gpt-4o-mini".into(),
@@ -44,6 +45,7 @@ impl OpenAIProvider {
                     max_tokens: 128_000,
                     quality_score: 0.78,
                     avg_latency_ms: 800,
+                    handoff_certification: HandoffCertification::default(),
                 },
                 ModelInfo {
                     model_id: "gpt-4-turbo".into(),
@@ -58,6 +60,7 @@ impl OpenAIProvider {
                     max_tokens: 128_000,
                     quality_score: 0.90,
                     avg_latency_ms: 2000,
+                    handoff_certification: HandoffCertification::default(),
                 },
             ],
             base_url: "https://api.openai.com".into(),

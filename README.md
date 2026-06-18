@@ -207,6 +207,15 @@ default and only runs when `DISPATCHER_HANDOFF_AUTO_CONTINUE=1`. This flow does
 not promise an exact 10% quota balance, emulate hosted Responses tools, or claim
 fallback models are equivalent to Codex-native execution.
 
+Dispatcher v0.3.0 adds a fallback worker certification layer for this handoff
+flow. Certification is model-level, not provider-level: a configured provider
+can contain both eligible and ineligible models. Tagged handoff continuations
+with `handoff_package_id` are routed only to models whose
+`handoff_certification` profile satisfies the observed handoff need, such as
+`handoff_text_only`, `handoff_code_patch`, `handoff_tool_capable`, or
+`handoff_long_context`. Uncertified models remain available for ordinary
+`provider-auto` routing, but they are not treated as handoff workers.
+
 ### Multi-provider routing
 
 Use `provider-auto` to route Responses requests using provider credentials

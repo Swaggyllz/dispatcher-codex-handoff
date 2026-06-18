@@ -29,6 +29,7 @@ impl OpenRouterProvider {
                     max_tokens: 128_000,
                     quality_score: 0.92,
                     avg_latency_ms: 1800,
+                    handoff_certification: HandoffCertification::default(),
                 },
                 ModelInfo {
                     model_id: "anthropic/claude-sonnet-4-6".into(),
@@ -43,6 +44,7 @@ impl OpenRouterProvider {
                     max_tokens: 200_000,
                     quality_score: 0.93,
                     avg_latency_ms: 2200,
+                    handoff_certification: HandoffCertification::default(),
                 },
                 ModelInfo {
                     model_id: "google/gemini-2.5-flash".into(),
@@ -57,6 +59,7 @@ impl OpenRouterProvider {
                     max_tokens: 1_048_576,
                     quality_score: 0.85,
                     avg_latency_ms: 700,
+                    handoff_certification: HandoffCertification::default(),
                 },
             ],
             base_url: "https://openrouter.ai/api".into(),

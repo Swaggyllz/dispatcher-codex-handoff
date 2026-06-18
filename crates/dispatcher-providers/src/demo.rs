@@ -29,6 +29,15 @@ impl DemoProvider {
                     max_tokens: 8192,
                     quality_score: 0.72,
                     avg_latency_ms: 25,
+                    handoff_certification: HandoffCertification {
+                        labels: vec![HandoffCertificationLabel::HandoffTextOnly],
+                        eval_set: Some("dispatcher-demo-local".into()),
+                        evaluated_at: Some("2026-06-18".into()),
+                        notes: Some(
+                            "Local demo text fixture only; not a production fallback worker."
+                                .into(),
+                        ),
+                    },
                 }],
                 base_url: "local://demo".into(),
                 requires_api_key: false,

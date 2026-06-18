@@ -59,6 +59,7 @@ impl MiMoProvider {
                     max_tokens: 262144,
                     quality_score: 0.88,
                     avg_latency_ms: 2500,
+                    handoff_certification: HandoffCertification::default(),
                 },
                 ModelInfo {
                     model_id: "mimo-v2.5".into(),
@@ -73,6 +74,7 @@ impl MiMoProvider {
                     max_tokens: 262144,
                     quality_score: 0.85,
                     avg_latency_ms: 1000,
+                    handoff_certification: HandoffCertification::default(),
                 },
                 ModelInfo {
                     model_id: "mimo-v2-pro".into(),
@@ -87,6 +89,7 @@ impl MiMoProvider {
                     max_tokens: 262144,
                     quality_score: 0.86,
                     avg_latency_ms: 2000,
+                    handoff_certification: HandoffCertification::default(),
                 },
                 ModelInfo {
                     model_id: "mimo-v2-flash".into(),
@@ -101,6 +104,7 @@ impl MiMoProvider {
                     max_tokens: 262144,
                     quality_score: 0.82,
                     avg_latency_ms: 600,
+                    handoff_certification: HandoffCertification::default(),
                 },
             ],
             base_url: "https://api.xiaomimimo.com".into(),

@@ -1,6 +1,6 @@
 {
   "name": "dispatcher",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Dispatcher 2.0 — Codex Handoff Router",
   "type": "module",
   "scripts": {

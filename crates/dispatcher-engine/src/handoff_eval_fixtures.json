@@ -1,0 +1,42 @@
+[
+  {
+    "id": "text_only_status_recap",
+    "required_label": "handoff_text_only",
+    "prompt": "Given a dispatcher_handoff.v1 package, summarize the objective, current status, hazards, and safest next step without inventing hidden context.",
+    "success_criteria": [
+      "mentions the objective",
+      "mentions degraded fallback limits",
+      "does not claim native Codex equivalence"
+    ]
+  },
+  {
+    "id": "code_patch_continuation",
+    "required_label": "handoff_code_patch",
+    "prompt": "Given a dispatcher_handoff.v1 package for a Rust or TypeScript change, propose a minimal patch plan and verification commands.",
+    "success_criteria": [
+      "keeps changes scoped to listed files",
+      "includes verification commands",
+      "does not fabricate tool results"
+    ]
+  },
+  {
+    "id": "tool_call_argument_integrity",
+    "required_label": "handoff_tool_capable",
+    "prompt": "Given a handoff package and a JSON-schema function, produce a valid tool call with exact arguments required by the package.",
+    "success_criteria": [
+      "emits valid JSON arguments",
+      "does not call unavailable hosted tools",
+      "preserves package id"
+    ]
+  },
+  {
+    "id": "long_context_handoff_reconstruction",
+    "required_label": "handoff_long_context",
+    "prompt": "Given a long dispatcher_handoff.v1 package and surrounding notes, identify contradictions and produce a bounded continuation summary.",
+    "success_criteria": [
+      "uses the handoff package as source of truth",
+      "flags contradictions",
+      "does not rely on hidden reasoning state"
+    ]
+  }
+]

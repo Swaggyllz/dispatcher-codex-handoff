@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 
+pub use crate::handoff_certification::{HandoffCertification, HandoffCertificationLabel};
+
 fn deserialize_string_or_default<'de, D>(deserializer: D) -> Result<String, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -139,6 +141,8 @@ pub struct ProviderScore {
     pub availability: AvailabilityStatus,
     /// Policy adjustments that affected this candidate.
     pub policy_reason: Option<String>,
+    /// Model-level fallback worker certification profile.
+    pub handoff_certification: HandoffCertification,
     /// Weighted score components used to explain the final total score.
     pub score_breakdown: ScoreBreakdown,
 }
@@ -478,6 +482,8 @@ pub struct ModelInfo {
     /// 质量评分 0.0-1.0
     pub quality_score: f64,
     pub avg_latency_ms: u64,
+    #[serde(default)]
+    pub handoff_certification: HandoffCertification,
 }
 
 /// Provider trait — 所有 LLM provider 必须实现

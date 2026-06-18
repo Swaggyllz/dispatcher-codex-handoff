@@ -48,6 +48,21 @@ export interface ModelInfo {
   max_tokens: number;
   quality_score: number;
   avg_latency_ms: number;
+  handoff_certification: HandoffCertification;
+}
+
+export type HandoffCertificationLabel =
+  | "handoff_text_only"
+  | "handoff_code_patch"
+  | "handoff_tool_capable"
+  | "handoff_long_context"
+  | "not_certified";
+
+export interface HandoffCertification {
+  labels: HandoffCertificationLabel[];
+  eval_set?: string | null;
+  evaluated_at?: string | null;
+  notes?: string | null;
 }
 
 // GET /v1/telemetry
@@ -189,6 +204,8 @@ export interface HandoffContinuationTelemetry {
   error_message: string | null;
   source: string;
   status: string;
+  certification_labels: HandoffCertificationLabel[];
+  eligibility_reason: string | null;
   review_prompt: string;
 }
 

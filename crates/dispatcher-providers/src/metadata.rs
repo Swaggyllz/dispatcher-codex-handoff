@@ -1,4 +1,4 @@
-use dispatcher_engine::types::{ModelInfo, ProviderCapability};
+use dispatcher_engine::types::{HandoffCertification, ModelInfo, ProviderCapability};
 use serde::Deserialize;
 use std::path::Path;
 
@@ -38,6 +38,7 @@ struct ModelMetadata {
     max_tokens: Option<u32>,
     quality_score: Option<f64>,
     avg_latency_ms: Option<u64>,
+    handoff_certification: Option<HandoffCertification>,
 }
 
 pub fn apply_default_metadata(capabilities: &mut [ProviderCapability]) -> anyhow::Result<()> {
@@ -81,6 +82,7 @@ fn validate_metadata(metadata: &MetadataFile) -> anyhow::Result<()> {
             validate_non_empty(model.pricing_source.as_deref(), "pricing_source")?;
             validate_date(model.pricing_updated_at.as_deref())?;
             validate_quality(model.quality_score)?;
+            validate_handoff_certification(model.handoff_certification.as_ref())?;
             if let Some(max_tokens) = model.max_tokens {
                 anyhow::ensure!(max_tokens > 0, "max_tokens must be positive");
             }
@@ -129,6 +131,20 @@ fn validate_date(value: Option<&str>) -> anyhow::Result<()> {
             "pricing_updated_at must use YYYY-MM-DD"
         );
     }
+    Ok(())
+}
+
+fn validate_handoff_certification(value: Option<&HandoffCertification>) -> anyhow::Result<()> {
+    let Some(value) = value else {
+        return Ok(());
+    };
+
+    anyhow::ensure!(
+        !value.labels.is_empty(),
+        "handoff_certification.labels must not be empty"
+    );
+    validate_non_empty(value.eval_set.as_deref(), "handoff_certification.eval_set")?;
+    validate_date(value.evaluated_at.as_deref())?;
     Ok(())
 }
 
@@ -220,6 +236,9 @@ fn apply_model_metadata(model: &mut ModelInfo, override_model: &ModelMetadata) {
     if let Some(avg_latency_ms) = override_model.avg_latency_ms {
         model.avg_latency_ms = avg_latency_ms;
     }
+    if let Some(handoff_certification) = &override_model.handoff_certification {
+        model.handoff_certification = handoff_certification.clone();
+    }
 }
 
 fn model_from_metadata(model: &ModelMetadata) -> ModelInfo {
@@ -236,12 +255,14 @@ fn model_from_metadata(model: &ModelMetadata) -> ModelInfo {
         max_tokens: model.max_tokens.unwrap_or(4096),
         quality_score: model.quality_score.unwrap_or(0.5),
         avg_latency_ms: model.avg_latency_ms.unwrap_or(1000),
+        handoff_certification: model.handoff_certification.clone().unwrap_or_default(),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use dispatcher_engine::types::HandoffCertificationLabel;
 
     fn test_capability() -> ProviderCapability {
         ProviderCapability {
@@ -260,6 +281,7 @@ mod tests {
                 max_tokens: 4096,
                 quality_score: 0.7,
                 avg_latency_ms: 800,
+                handoff_certification: HandoffCertification::default(),
             }],
             base_url: "https://example.test".into(),
             requires_api_key: true,
@@ -303,5 +325,43 @@ supports_vision = false
         assert_eq!(serialized["pricing_updated_at"], "2026-06-08");
         assert_eq!(serialized["supports_tools"], false);
         assert_eq!(serialized["supports_vision"], false);
+    }
+
+    #[test]
+    fn metadata_file_applies_model_handoff_certification() {
+        let path = std::env::temp_dir().join(format!(
+            "dispatcher-model-certification-{}.toml",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::write(
+            &path,
+            r#"
+[[providers]]
+id = "alpha"
+
+[[providers.models]]
+id = "alpha-fast"
+handoff_certification = { labels = ["handoff_text_only", "handoff_code_patch"], eval_set = "dispatcher-handoff-v0.3.0-fixtures", evaluated_at = "2026-06-18", notes = "fixture-backed test profile" }
+"#,
+        )
+        .unwrap();
+
+        let mut capabilities = vec![test_capability()];
+        apply_metadata_file(&mut capabilities, &path).unwrap();
+        std::fs::remove_file(path).unwrap();
+
+        let certification = &capabilities[0].supported_models[0].handoff_certification;
+        assert!(certification.is_certified());
+        assert_eq!(
+            certification.labels,
+            vec![
+                HandoffCertificationLabel::HandoffTextOnly,
+                HandoffCertificationLabel::HandoffCodePatch
+            ]
+        );
+        assert_eq!(
+            certification.eval_set.as_deref(),
+            Some("dispatcher-handoff-v0.3.0-fixtures")
+        );
     }
 }

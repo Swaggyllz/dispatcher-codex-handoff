@@ -29,6 +29,7 @@ impl OllamaProvider {
                     max_tokens: 8192,
                     quality_score: 0.70,
                     avg_latency_ms: 3000,
+                    handoff_certification: HandoffCertification::default(),
                 },
                 ModelInfo {
                     model_id: "qwen2.5".into(),
@@ -43,6 +44,7 @@ impl OllamaProvider {
                     max_tokens: 32768,
                     quality_score: 0.68,
                     avg_latency_ms: 2500,
+                    handoff_certification: HandoffCertification::default(),
                 },
             ],
             base_url: base_url.clone(),

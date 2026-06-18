@@ -45,6 +45,7 @@ async fn list_providers(State(state): State<Arc<AppState>>) -> Json<serde_json::
                         "max_tokens": m.max_tokens,
                         "quality_score": m.quality_score,
                         "avg_latency_ms": m.avg_latency_ms,
+                        "handoff_certification": m.handoff_certification,
                     })
                 }).collect::<Vec<_>>(),
                 "supports_streaming": cap.supports_streaming,
@@ -148,6 +149,7 @@ pricing_source = "bundled-test"
 pricing_updated_at = "2026-06-08"
 supports_tools = false
 supports_vision = false
+handoff_certification = { labels = ["handoff_text_only"], eval_set = "dispatcher-handoff-v0.3.0-fixtures", evaluated_at = "2026-06-18" }
 "#,
         )
         .unwrap();
@@ -200,5 +202,9 @@ supports_vision = false
         assert_eq!(model["supports_tools"], false);
         assert_eq!(model["supports_vision"], false);
         assert_eq!(model["supports_streaming"], true);
+        assert_eq!(
+            model["handoff_certification"]["labels"][0],
+            "handoff_text_only"
+        );
     }
 }

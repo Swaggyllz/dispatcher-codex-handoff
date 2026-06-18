@@ -62,6 +62,8 @@ pub struct HandoffContinuationRecord {
     pub error_message: Option<String>,
     pub source: String,
     pub status: String,
+    pub certification_labels: Vec<String>,
+    pub eligibility_reason: Option<String>,
 }
 
 pub struct TelemetryStore {
@@ -149,7 +151,9 @@ impl TelemetryStore {
                 response_text TEXT,
                 error_message TEXT,
                 source TEXT NOT NULL DEFAULT 'user_click',
-                status TEXT NOT NULL DEFAULT ''
+                status TEXT NOT NULL DEFAULT '',
+                certification_labels TEXT NOT NULL DEFAULT '[]',
+                eligibility_reason TEXT
             );
 
             CREATE INDEX IF NOT EXISTS idx_telemetry_timestamp ON telemetry(timestamp);
@@ -295,8 +299,9 @@ impl TelemetryStore {
         db.execute(
             "INSERT INTO handoff_continuations (
                 id, timestamp, package_id, provider_id, model_id, success, status_code,
-                latency_ms, response_text, error_message, source, status
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                latency_ms, response_text, error_message, source, status,
+                certification_labels, eligibility_reason
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
             params![
                 record.id,
                 record.timestamp.to_rfc3339(),
@@ -310,6 +315,8 @@ impl TelemetryStore {
                 record.error_message,
                 record.source,
                 record.status,
+                serde_json::to_string(&record.certification_labels)?,
+                record.eligibility_reason,
             ],
         )?;
         Ok(())
@@ -543,6 +550,8 @@ impl TelemetryStore {
                         handoff_continuations.error_message,
                         handoff_continuations.source,
                         handoff_continuations.status,
+                        handoff_continuations.certification_labels,
+                        handoff_continuations.eligibility_reason,
                         handoff_packages.package_json
                  FROM handoff_continuations
                  LEFT JOIN handoff_packages ON handoff_packages.package_id = handoff_continuations.package_id
@@ -560,7 +569,13 @@ impl TelemetryStore {
                     let error_message = row.get::<_, Option<String>>(8)?;
                     let source = row.get::<_, String>(9)?;
                     let status = row.get::<_, String>(10)?;
-                    let package_json = row.get::<_, Option<String>>(11)?;
+                    let certification_labels = row
+                        .get::<_, String>(11)
+                        .ok()
+                        .and_then(|labels| serde_json::from_str::<Vec<String>>(&labels).ok())
+                        .unwrap_or_default();
+                    let eligibility_reason = row.get::<_, Option<String>>(12)?;
+                    let package_json = row.get::<_, Option<String>>(13)?;
                     let review_prompt = build_handoff_review_prompt(HandoffReviewPromptInput {
                         package_json: package_json.as_deref(),
                         package_id: &package_id,
@@ -588,6 +603,8 @@ impl TelemetryStore {
                         } else {
                             status.as_str()
                         },
+                        "certification_labels": certification_labels,
+                        "eligibility_reason": eligibility_reason,
                         "review_prompt": review_prompt,
                     }))
                 },
@@ -678,6 +695,18 @@ fn ensure_handoff_continuation_metadata_columns(conn: &Connection) -> anyhow::Re
     if !names.iter().any(|name| name == "status") {
         conn.execute(
             "ALTER TABLE handoff_continuations ADD COLUMN status TEXT NOT NULL DEFAULT ''",
+            [],
+        )?;
+    }
+    if !names.iter().any(|name| name == "certification_labels") {
+        conn.execute(
+            "ALTER TABLE handoff_continuations ADD COLUMN certification_labels TEXT NOT NULL DEFAULT '[]'",
+            [],
+        )?;
+    }
+    if !names.iter().any(|name| name == "eligibility_reason") {
+        conn.execute(
+            "ALTER TABLE handoff_continuations ADD COLUMN eligibility_reason TEXT",
             [],
         )?;
     }
@@ -1054,6 +1083,8 @@ mod tests {
             error_message: None,
             source: "user_click".into(),
             status: "succeeded".into(),
+            certification_labels: vec!["handoff_code_patch".into()],
+            eligibility_reason: Some("selected from certified fallback workers".into()),
         };
 
         store.record_handoff_continuation(&record).await.unwrap();
@@ -1072,6 +1103,14 @@ mod tests {
         );
         assert_eq!(continuation["source"], "user_click");
         assert_eq!(continuation["status"], "succeeded");
+        assert_eq!(
+            continuation["certification_labels"][0],
+            "handoff_code_patch"
+        );
+        assert_eq!(
+            continuation["eligibility_reason"],
+            "selected from certified fallback workers"
+        );
         assert!(continuation["review_prompt"]
             .as_str()
             .unwrap()
