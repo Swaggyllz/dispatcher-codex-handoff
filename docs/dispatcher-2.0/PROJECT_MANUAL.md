@@ -166,16 +166,22 @@ Completed:
     text or terminal failure state.
   - The simple dashboard exposes saved fallback continuation state, source /
     status, copy-review-prompt, and explicit "Review with Codex".
+- Release version alignment for the follow-up patch complete:
+  - Workspace, root package, web package, and Cargo.lock now use `0.2.1`.
+  - Release notes added:
+    `docs/releases/v0.2.1-codex-handoff-followup.md`.
 
 Current milestone status:
 
 - First slice complete: native Codex quota/rate-limit emergency handoff package persistence and dashboard visibility.
 - Second slice complete: user-approved provider-auto continuation from the emergency handoff card.
-- Follow-up phases complete in local uncommitted changes: planned reliable
+- Follow-up phases complete and published as `v0.2.1`: planned reliable
   quota-snapshot handoff, opt-in background continuation, streaming
   continuation persistence, and richer primary-route reclaim UI.
-- Release preparation started:
+- Release publication:
   - `docs/releases/v0.2.0-codex-handoff.md` drafts initial Dispatcher 2.0 release notes and PR summary.
+  - `docs/releases/v0.2.1-codex-handoff-followup.md` records the follow-up
+    patch release notes.
   - README handoff documentation now describes emergency package visibility and explicit user-approved continuation.
   - New GitHub repository created: `https://github.com/Swaggyllz/dispatcher-codex-handoff`.
   - Local `v2` remote added for the new repository. Existing `origin` still points to `https://github.com/Swaggyllz/dispatcher.git`.
@@ -184,25 +190,32 @@ Current milestone status:
   - New repository check passed: public repo, default branch `main`, README renders with Dispatcher 2.0 heading.
   - `v0.2.0` tag was created and pushed to `v2`.
   - GitHub Release `v0.2.0` was created on `Swaggyllz/dispatcher-codex-handoff`.
-- Verification status: full release readiness verification passed again for the
-  post-`v0.2.0` follow-up changes on 2026-06-18. These changes were committed
-  locally as `feat: complete dispatcher 2.0 handoff follow-up`; no tag or push
-  has been performed.
+  - Follow-up commit `74bf2c3 feat: complete dispatcher 2.0 handoff follow-up`
+    was pushed to `v2/main`.
+  - Release preparation commit
+    `2fa536f chore: prepare v0.2.1 release` was pushed to `v2/main`.
+  - `v0.2.1` tag was created from the release preparation commit and pushed
+    to `v2`.
+  - GitHub Release `v0.2.1` was created on
+    `Swaggyllz/dispatcher-codex-handoff`:
+    `https://github.com/Swaggyllz/dispatcher-codex-handoff/releases/tag/v0.2.1`.
+- Verification status: full release readiness verification passed again for
+  `v0.2.1` on 2026-06-18 before publication.
 
 Current workspace checkpoint on 2026-06-18:
 
-- Branch is `main` tracking `v2/main`; it is one commit ahead of `v2/main`
-  with the local follow-up commit.
+- Branch is `main` tracking `v2/main`.
 - `origin` still points to the Dispatcher 1.0 repository:
   `https://github.com/Swaggyllz/dispatcher.git`.
 - `v2` points to the Dispatcher 2.0 repository:
   `https://github.com/Swaggyllz/dispatcher-codex-handoff.git`.
 - Do not push to `origin`. Use only `v2` as the Dispatcher 2.0 publication
   target unless the user explicitly changes the release strategy.
-- Local service was not already running on `127.0.0.1:8787`; after starting
+- During the `v0.2.1` release smoke check, local service was not already
+  running on `127.0.0.1:8787`; after starting
   `cargo run -- serve --web-dir ./web/dist`, `/` and `/v1/health` returned
-  HTTP 200 and health returned `{"status":"ok","version":"0.2.0"}`. The
-  verification server was then stopped.
+  HTTP 200 and health returned `{"status":"ok","version":"0.2.1"}`. The
+  verification server was then stopped, and no listener remained on 8787.
 - `docs/super-mode/super-mode-project-methodology.pdf` and its HTML source
   exist as the generated Super Mode sharing artifact.
 
@@ -294,11 +307,15 @@ native Codex reliable rate-limit headers
 Immediate:
 
 - Do not push to `origin main`.
-- The fresh full verification matrix has passed for the post-`v0.2.0`
-  follow-up changes. Rerun it if any code, docs, or release configuration
-  changes before commit or publication.
-- If publishing, use only the `v2` remote unless the user explicitly changes
-  the release strategy.
+- Dispatcher 2.0 follow-up release `v0.2.1` has been published to `v2`.
+- Keep `origin` as the Dispatcher 1.0 repository and continue to use only `v2`
+  for Dispatcher 2.0 publication unless the user explicitly changes the
+  strategy.
+- Rerun the full verification matrix if any code, docs, or release
+  configuration changes before the next commit or publication.
+- Next product planning should start as a separate post-`v0.2.1` scope. The
+  likely `v0.3.0` track is provider/model expansion and Codex-compatible
+  routing policy, not part of the `v0.2.1` follow-up release.
 
 Completed post-`v0.2.0` follow-up phases in the current workspace:
 
@@ -320,7 +337,7 @@ pnpm --dir web typecheck
 pnpm --dir web build
 ```
 
-Latest final verification result after post-`v0.2.0` follow-up phases on 2026-06-18:
+Latest final verification result for the `v0.2.1` release on 2026-06-18:
 
 - `./scripts/check-open-source-readiness.sh`: passed.
 - `cargo fmt --all --check`: passed.
@@ -331,6 +348,10 @@ Latest final verification result after post-`v0.2.0` follow-up phases on 2026-06
 - `pnpm --dir web typecheck`: passed.
 - `pnpm --dir web build`: passed.
 - `git diff --check`: passed.
+- Local service smoke check: `/` returned HTTP 200; `/v1/health` returned
+  HTTP 200 with `{"status":"ok","version":"0.2.1"}`.
+- Post-release remote checks: `v2/main` contains release preparation commit
+  `2fa536f`; `v0.2.1` tag exists on `v2`; GitHub Release `v0.2.1` exists.
 
 Targeted release-boundary review on 2026-06-18:
 
